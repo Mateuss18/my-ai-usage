@@ -57,6 +57,21 @@ await AssertThrowsAsync<InvalidOperationException>(
     "rejects app-server errors"
 );
 
+var authenticationError = await AssertThrowsAsync<InvalidOperationException>(
+    () => CodexAppServer.RequestAsync(
+        TextWriter.Null,
+        new StringReader("{\"id\":3,\"error\":{\"message\":\"authentication required\"}}\n"),
+        3,
+        "account/rateLimits/read",
+        null
+    ),
+    "rejects missing Codex authentication"
+);
+Assert(
+    authenticationError.Message == "É necessário autenticar o Codex para consultar as quotas.",
+    "explains when Codex authentication is required"
+);
+
 using var multipleBuckets = JsonDocument.Parse("""
 {
   "rateLimitsByLimitId": {
@@ -105,15 +120,15 @@ static void Assert(bool condition, string message)
     }
 }
 
-static async Task AssertThrowsAsync<T>(Func<Task> action, string message) where T : Exception
+static async Task<T> AssertThrowsAsync<T>(Func<Task> action, string message) where T : Exception
 {
     try
     {
         await action();
     }
-    catch (T)
+    catch (T exception)
     {
-        return;
+        return exception;
     }
 
     throw new InvalidOperationException(message);

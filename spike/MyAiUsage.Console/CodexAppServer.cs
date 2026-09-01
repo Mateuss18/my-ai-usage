@@ -64,8 +64,19 @@ public static class CodexAppServer
                 continue;
             }
 
-            if (root.TryGetProperty("error", out _))
+            if (root.TryGetProperty("error", out var error))
             {
+                var serverMessage = error.ValueKind == JsonValueKind.Object
+                    && error.TryGetProperty("message", out var errorProperty)
+                    && errorProperty.ValueKind == JsonValueKind.String
+                        ? errorProperty.GetString()
+                        : null;
+
+                if (serverMessage?.Contains("authentication", StringComparison.OrdinalIgnoreCase) == true)
+                {
+                    throw new InvalidOperationException("É necessário autenticar o Codex para consultar as quotas.");
+                }
+
                 throw new InvalidOperationException("O codex app-server retornou um erro.");
             }
 
