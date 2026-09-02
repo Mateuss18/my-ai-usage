@@ -6,3 +6,6 @@
 # .NET build output
 [Bb]in/
 [Oo]bj/
+
+# Local packaging output
+artifacts/
