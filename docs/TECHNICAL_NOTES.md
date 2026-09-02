@@ -6,6 +6,16 @@ Construir a V1 em C# e .NET com WinUI 3, usando o processo oficial `codex app-se
 
 Essa escolha atende ao objetivo de aprendizado e mantém o produto Windows-first. WPF teria um caminho mais maduro para alguns comportamentos de bandeja, mas trocar de stack antes de encontrar um bloqueio real reduziria o valor de aprendizado pretendido.
 
+## Contrato fechado da V1
+
+- A distribuição é MSIX.
+- O auto-start padrão é habilitado e pode ser desligado pelo usuário; quando ativado pelo Windows, o app inicia oculto.
+- O tray abre ou restaura a janela compacta.
+- Acessibilidade básica — teclado, nomes acessíveis, contraste e não depender só de cor — pertence à V1.
+- Polling serializado de 60 segundos é a decisão V1 para notificações. Refresh manual e timer compartilham a mesma leitura e não podem sobrepor requisições; notificações do app-server são consumidas e ignoradas.
+- Instalador mais amigável, auto-update e polimento avançado pertencem à V1.1.
+- Limites de release: painel utilizável em até 5 s, até 100 MB de working set oculto após 5 min, até 200 MB aberto após 5 min e CPU média abaixo de 2% oculto fora do refresh.
+
 ## Fonte de dados do Codex
 
 O Codex App Server expõe uma interface JSON-RPC bidirecional. O cliente inicia `codex app-server` e conversa com o processo por `stdin` e `stdout`, com uma mensagem JSON por linha.
@@ -72,10 +82,10 @@ Não criar agora `IProvider`, fábrica, plugin system, banco, servidor local ou 
 4. Consultar `account/read` e `account/rateLimits/read`.
 5. Converter timestamps para o fuso local apenas na camada de apresentação.
 6. Atualizar a interface no dispatcher do WinUI.
-7. Continuar lendo notificações até o encerramento do aplicativo.
+7. Consumir e ignorar notificações do app-server até o encerramento; o polling serializado faz a próxima leitura a cada 60 segundos.
 8. Encerrar o processo filho de maneira controlada.
 
-Uma consulta periódica simples, por exemplo a cada 60 segundos, é suficiente como fallback. Antes de fixar o intervalo, verificar se as notificações cobrem as mudanças relevantes sem polling contínuo.
+O polling serializado de 60 segundos é a decisão V1 para notificações. Uma leitura manual ou do timer deve aguardar a leitura em andamento; nunca executar duas consultas simultâneas. O intervalo poderá mudar somente com evidência de uso e custo.
 
 ## Bandeja e janela
 
@@ -85,21 +95,21 @@ Decisão para o primeiro spike:
 
 1. provar a chamada ao app-server em um processo de console C#;
 2. provar uma janela WinUI que abre e fecha corretamente;
-3. só então implementar o ícone de bandeja pelo menor caminho confiável.
+3. implementar o tray da V1 pelo menor caminho confiável.
 
 Não escolher uma dependência de tray antes desse spike. Se poucas chamadas Win32 resolverem com segurança, não adicionar pacote; se o ciclo de vida ficar complexo, usar uma biblioteca pequena e mantida é mais barato que possuir código nativo frágil.
 
 ## Distribuição
 
-Para desenvolvimento, começar com o modelo padrão gerado pelas ferramentas atuais do WinUI 3. A escolha entre aplicação empacotada e não empacotada deve ser feita após validar:
+Para desenvolvimento, começar com o modelo padrão gerado pelas ferramentas atuais do WinUI 3. A distribuição da V1 será em MSIX, após validar:
 
 - instalação e atualização;
 - localização do `codex` no `PATH` real do processo gráfico;
-- inicialização com o Windows;
+- auto-start padrão e início oculto quando ativado pelo Windows;
 - comportamento do tray após reinício do Explorer;
 - tamanho e simplicidade da distribuição.
 
-MSIX, instalador alternativo e auto-update não pertencem ao primeiro spike.
+Instalador mais amigável, auto-update e polimento avançado não são gates da V1; ficam para a V1.1. O primeiro spike não prova a distribuição, o auto-start ou o tray.
 
 ## Segurança e privacidade
 
@@ -128,8 +138,20 @@ O painel deve manter o último valor apenas se ele estiver marcado com o horári
 - Teste do parser com uma resposta contendo um bucket e outra com múltiplos buckets.
 - Teste dos estados de campo ausente e JSON inválido.
 - Teste manual com Codex autenticado, deslogado e ausente do `PATH`.
-- Medição simples de memória quando o painel estiver fechado.
-- Verificação de teclado, leitor de tela, contraste e escala do Windows antes de chamar a V1 de pronta.
+- Medição de abertura, working set e CPU contra os limites: painel utilizável em até 5 s, até 100 MB oculto após 5 min, até 200 MB aberto após 5 min e CPU média abaixo de 2% oculto fora do refresh.
+- Verificação de teclado, nomes acessíveis, contraste, não depender só de cor e escala do Windows antes de chamar a V1 de pronta.
+
+## Matriz de evidências e limites
+
+| Cenário | Comando/ação | Máquina/SDK | Data | Resultado | Limite | Limitação conhecida |
+| --- | --- | --- | --- | --- | --- | --- |
+| Restore do baseline | `rtk dotnet restore spike\MyAiUsage.Console.Checks\MyAiUsage.Console.Checks.csproj` | Windows 10.0.26200.0 / .NET SDK 10.0.400 | 2026-09-01 | Reproduzido: 2 projetos, 0 erros, 0 avisos | Restore sem erros ou avisos | Não prova o comportamento da aplicação WinUI, MSIX ou produção |
+| Build do baseline | `rtk dotnet build spike\MyAiUsage.Console.Checks\MyAiUsage.Console.Checks.csproj -c Release -warnaserror` | Windows 10.0.26200.0 / .NET SDK 10.0.400 | 2026-09-01 | Reproduzido: 2 projetos, 0 erros, 0 avisos | 0 erros e 0 avisos | Compila somente o spike Console e seus checks |
+| Checks executáveis antes da extensão | `rtk dotnet run --project spike\MyAiUsage.Console.Checks\MyAiUsage.Console.Checks.csproj -c Release --no-build` | Windows 10.0.26200.0 / .NET SDK 10.0.400 | 2026-09-01 | Reproduzido: `Process configuration checks passed.` | Linha de sucesso do spike | Não prova tray físico, auto-start, MSIX, acessibilidade ou desempenho de release |
+| Fluxo Codex autenticado | Execução anterior com sessão Codex real autenticada | Ambiente histórico; SDK e máquina não reproduzidos nesta sessão | Histórica; não reproduzida na Task 0 | Evidência histórica, não confirmada agora | Reproduzir autenticado, deslogado e Codex ausente do `PATH` antes da release | Não usar como evidência atual nem registrar credenciais, e-mail ou payload |
+| Desempenho da aplicação | Medir após o scaffold com painel oculto e aberto por 5 min | Não aplicável ao spike atual | Pendente | Não medido | Painel em até 5 s; working set até 100 MB oculto e 200 MB aberto; CPU média abaixo de 2% oculto fora do refresh | O spike não tem UI WinUI, tray, MSIX ou ciclo de vida da aplicação |
+
+O build e a execução autenticada anteriores que não foram reproduzidos são históricos. Nesta Task 0, somente as três linhas de baseline acima foram reproduzidas; nenhum resultado de produção é inferido a partir delas.
 
 ## Achados nas referências
 
@@ -154,11 +176,9 @@ Já existem utilitários Windows para Codex e Claude. Isso valida o problema, ma
 - código pequeno, compreensível e útil para colaboradores C#;
 - comportamento local-first e transparente.
 
-## Questões para a próxima decisão
+## Decisões fechadas antes do scaffold
 
-1. O painel será uma janela comum compacta ou um flyout ancorado ao ícone da bandeja?
-2. A V1 suporta somente Windows 11 ou também Windows 10?
-3. O app deve iniciar com o Windows já na V1 ou isso fica para o polimento?
-4. Qual métrica de leveza será adotada para memória e tempo de abertura?
-
-Essas decisões devem ser fechadas antes do scaffold, não antecipadas por uma arquitetura genérica.
+1. O painel será uma janela comum compacta, aberta ou restaurada pelo tray.
+2. A V1 suporta Windows 11.
+3. O auto-start padrão e o início oculto fazem parte da V1.
+4. O desempenho será avaliado pelos limites registrados na matriz: abertura em até 5 s, working set de até 100 MB oculto e 200 MB aberto após 5 min, e CPU média abaixo de 2% oculto fora do refresh.
