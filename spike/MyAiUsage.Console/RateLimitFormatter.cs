@@ -61,6 +61,7 @@ public static class RateLimitFormatter
         var usage = window.TryGetProperty("usedPercent", out var usedPercent)
             && usedPercent.ValueKind == JsonValueKind.Number
             && usedPercent.TryGetInt32(out var used)
+            && used is >= 0 and <= 100
                 ? $"{used}% usado"
                 : "uso desconhecido";
         var duration = window.TryGetProperty("windowDurationMins", out var durationMins)

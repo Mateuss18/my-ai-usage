@@ -110,6 +110,27 @@ Assert(
     "falls back to the legacy bucket"
 );
 
+await AssertThrowsAsync<JsonException>(
+    () => CodexAppServer.RequestAsync(
+        TextWriter.Null, new StringReader("{invalid}\n"), 4, "test", null),
+    "rejects invalid JSON"
+);
+
+await AssertThrowsAsync<EndOfStreamException>(
+    () => CodexAppServer.RequestAsync(
+        TextWriter.Null, new StringReader(string.Empty), 5, "test", null),
+    "rejects EOF before a response"
+);
+
+using var invalidPercent = JsonDocument.Parse("""
+{ "rateLimits": { "primary": { "usedPercent": 101 } } }
+""");
+Assert(
+    RateLimitFormatter.Format(invalidPercent.RootElement, TimeZoneInfo.Utc)
+        .Single().Contains("uso desconhecido", StringComparison.Ordinal),
+    "does not present an out-of-range percentage as valid"
+);
+
 Console.WriteLine("Process configuration checks passed.");
 
 static void Assert(bool condition, string message)

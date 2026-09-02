@@ -19,11 +19,21 @@ Este documento acompanha a execução do My AI Usage. Um item só deve ser marca
 - [x] Tratar campos ausentes como desconhecidos, sem convertê-los silenciosamente em zero.
 - [x] Criar checks executáveis para configuração do processo, ciclo de vida, JSON-RPC, erro do servidor, múltiplos buckets e resposta parcial.
 - [x] Validar build sem erros ou avisos.
-- [x] Validar o fluxo completo com uma sessão Codex real autenticada.
+- [x] Validar o fluxo completo com uma sessão Codex real autenticada (evidência histórica; não reproduzida na Task 0).
 
 ### Estado do Git
 
-Na última inspeção, `README.md`, `docs/`, `spike/` e `.vs/` apareciam como não rastreados. Nada foi commitado ou enviado. Antes de versionar, adicionar regras para ignorar `.vs/`, `bin/` e `obj/` e revisar exatamente o que será incluído.
+`.serena/` é um artefato local não rastreado e fica fora do commit da Task 0. O commit da tarefa inclui somente o contrato documental e os checks do spike.
+
+## Contrato fechado da V1 (Task 0)
+
+- A distribuição V1 será em MSIX.
+- O auto-start padrão é habilitado, pode ser desligado pelo usuário e inicia o app oculto quando acionado pelo Windows.
+- O tray abre ou restaura a janela compacta.
+- Acessibilidade básica — teclado, nomes acessíveis, contraste e não depender só de cor — é requisito V1.
+- Polling serializado de 60 segundos é a decisão V1 para notificações; refresh manual e timer não podem fazer leituras simultâneas.
+- O gate de desempenho é painel utilizável em até 5 s, até 100 MB de working set oculto após 5 min, até 200 MB aberto após 5 min e CPU média abaixo de 2% oculto fora do refresh.
+- Instalador mais amigável, auto-update e polimento avançado ficam para a V1.1.
 
 ## Próximo passo imediato — concluir o spike
 
@@ -48,7 +58,7 @@ Critério de saída: os três cenários principais — autenticado, deslogado e 
 ### 2. Provar a janela WinUI
 
 - [ ] Abrir e fechar uma janela compacta sem falha.
-- [ ] Definir antes do layout final se o painel será uma janela compacta comum ou um flyout ancorado ao tray.
+- [ ] Implementar e validar a janela compacta comum, aberta ou restaurada pelo tray.
 - [ ] Seguir tema claro/escuro e escala do Windows usando comportamento nativo sempre que possível.
 - [ ] Não implementar tray, animações ou personalização visual antes de a janela básica funcionar.
 
@@ -59,7 +69,7 @@ Critério de saída: os três cenários principais — autenticado, deslogado e 
 - [ ] Consultar a conta quando necessário para distinguir usuário deslogado de falha temporária.
 - [ ] Consultar todas as janelas retornadas por `account/rateLimits/read`.
 - [ ] Consumir `account/rateLimits/updated` ou refazer a leitura quando a notificação for esparsa.
-- [ ] Implementar atualização manual e fallback periódico moderado; começar com 60 segundos e ajustar apenas com evidência.
+- [ ] Implementar atualização manual e polling serializado de 60 segundos; notificações do app-server são consumidas e ignoradas, e a próxima leitura ocorre no intervalo definido.
 - [ ] Encerrar o processo filho ao sair do aplicativo.
 
 ### 4. Entregar o painel funcional
@@ -75,7 +85,7 @@ Critério de saída: os três cenários principais — autenticado, deslogado e 
 ### 5. Implementar o tray
 
 - [ ] Validar primeiro o ciclo de vida da janela sem tray.
-- [ ] Escolher entre chamadas Win32 mínimas e uma biblioteca pequena e mantida somente após um spike específico.
+- [ ] Implementar o tray por chamadas Win32 mínimas ou uma biblioteca pequena e mantida, conforme o menor caminho confiável.
 - [ ] Abrir ou restaurar o painel pelo ícone.
 - [ ] Fechar o painel sem encerrar o processo quando essa for a interação esperada.
 - [ ] Disponibilizar comando explícito para sair e liberar o app-server.
@@ -97,13 +107,13 @@ Critério de saída: os três cenários principais — autenticado, deslogado e 
 - [ ] Testar manualmente Codex autenticado, deslogado e ausente do `PATH`.
 - [ ] Testar abertura, fechamento, tray, atualização, saída e reinício do Explorer.
 - [ ] Verificar teclado, foco, leitor de tela, contraste e escalas comuns do Windows.
-- [ ] Medir tempo de abertura e memória com o painel aberto e fechado; registrar limites antes de aprovar a release.
+- [ ] Medir tempo de abertura e memória com o painel aberto e fechado; aprovar somente com painel utilizável em até 5 s, até 100 MB de working set oculto após 5 min, até 200 MB aberto após 5 min e CPU média abaixo de 2% oculto fora do refresh.
 - [ ] Testar em uma instalação limpa do Windows 11 sem ambiente de desenvolvimento.
 - [ ] Confirmar que falha de rede e resposta parcial não apagam silenciosamente o último valor válido.
 
 ### 8. Distribuição e conclusão da V1
 
-- [ ] Escolher aplicação empacotada ou não empacotada depois de validar `PATH`, tray e instalação limpa.
+- [ ] Produzir a distribuição V1 em MSIX depois de validar `PATH`, tray e instalação limpa.
 - [ ] Produzir um artefato executável reproduzível e instruções de instalação/remoção.
 - [ ] Documentar a dependência do Codex instalado e autenticado.
 - [ ] Atualizar README, limitações conhecidas e política local-first.
@@ -123,11 +133,11 @@ Critério de saída: os três cenários principais — autenticado, deslogado e 
 
 ## V1.1 — polimento orientado por uso real
 
-- [ ] Avaliar instalador mais amigável e atualização automática.
-- [ ] Avaliar inicialização opcional com o Windows.
+- [ ] Avaliar instalador mais amigável.
+- [ ] Avaliar atualização automática.
 - [ ] Avaliar notificações simples de proximidade do limite.
-- [ ] Refinar visual, tray e consumo de recursos conforme medições e feedback.
-- [ ] Corrigir problemas de acessibilidade e compatibilidade encontrados após a V1.
+- [ ] Refinar visual, tray e consumo de recursos como polimento avançado, conforme medições e feedback.
+- [ ] Corrigir problemas de acessibilidade avançada e compatibilidade encontrados após a V1.
 
 Esses itens não devem atrasar a V1, salvo quando um deles for necessário para uma distribuição segura e utilizável.
 

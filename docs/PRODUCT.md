@@ -51,11 +51,15 @@ Entregar um utilitário confiável e discreto que:
 ### Incluído
 
 - Windows 11 inicialmente.
+- Distribuição em MSIX.
+- Auto-start padrão, desligável pelo usuário, com início oculto quando ativado pelo Windows.
+- Ícone na bandeja para abrir ou restaurar a janela compacta.
 - Codex autenticado por uma modalidade compatível com os serviços Codex.
 - Janela compacta e acesso pela bandeja.
 - Uma conta ativa, a mesma usada pelo Codex local.
 - Percentual usado, duração da janela e horário de renovação.
 - Atualização automática moderada e botão para atualizar.
+- Acessibilidade básica: teclado, nomes acessíveis, contraste e informação que não dependa só de cor.
 - Tema claro/escuro seguindo o Windows, se coberto pelo comportamento nativo do WinUI.
 
 ### Fora da V1
@@ -69,15 +73,17 @@ Entregar um utilitário confiável e discreto que:
 - Notificações configuráveis.
 - Sincronização entre dispositivos.
 - Serviço em nuvem, telemetria e atualização automática do aplicativo.
+- Instalador mais amigável e polimento avançado; ficam para a V1.1.
 
 ## Experiência essencial
 
 1. O usuário inicia o aplicativo.
-2. O aplicativo inicia e inicializa o `codex app-server` local.
-3. O painel consulta a conta e as quotas.
-4. Cada janela disponível aparece com percentual usado e renovação.
-5. O usuário fecha o painel; o aplicativo permanece acessível pela bandeja.
-6. Uma atualização periódica ou manual consulta novamente os valores.
+2. O auto-start padrão pode ativar o app oculto; o usuário pode desligá-lo.
+3. O aplicativo inicializa o `codex app-server` local.
+4. O painel consulta a conta e as quotas.
+5. Cada janela disponível aparece com percentual usado e renovação.
+6. O usuário fecha o painel; o aplicativo permanece acessível pela bandeja.
+7. Polling serializado de 60 segundos ou atualização manual consulta novamente os valores, sem leituras simultâneas.
 
 ## Estados necessários
 
@@ -88,6 +94,14 @@ Entregar um utilitário confiável e discreto que:
 - Conta desconectada ou autenticação incompatível.
 - Dados parcialmente indisponíveis.
 - Falha temporária, com opção de tentar novamente.
+- Desatualizado quando o último snapshot completo é mantido após uma falha temporária.
+
+## Limites de desempenho da V1
+
+- Painel utilizável em até 5 s após a abertura.
+- Working set de até 100 MB com o painel oculto após 5 min.
+- Working set de até 200 MB com o painel aberto após 5 min.
+- CPU média abaixo de 2% com o painel oculto, fora do refresh.
 
 ## Roadmap orientativo
 
@@ -97,7 +111,7 @@ Validar integração, painel e utilidade cotidiana.
 
 ### V1.1 — Polimento
 
-Instalador, inicialização opcional com o Windows, acessibilidade e notificações simples, conforme feedback real.
+Instalador mais amigável, auto-update e polimento avançado, conforme feedback real.
 
 ### V2 — Segundo provedor
 
