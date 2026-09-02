@@ -310,13 +310,14 @@ Assert(UsageColor(null) == "neutral", "uses neutral for unknown");
 ```csharp
 private async Task RefreshAsync(CancellationToken cancellationToken)
 {
-    if (!await _refreshGate.WaitAsync(0, cancellationToken)) return;
+    await _refreshGate.WaitAsync(cancellationToken);
     try
     {
         SetState("Carregando");
         var snapshot = await _client.ReadRateLimitsAsync(cancellationToken);
         if (snapshot.IsPartial)
         {
+            Render(_lastGoodSnapshot ?? snapshot);
             SetState("Dados parciais");
             return;
         }
@@ -335,7 +336,7 @@ private async Task RefreshAsync(CancellationToken cancellationToken)
 }
 ```
 
-Se houver falha com snapshot anterior, manter anéis e hora anterior e acrescentar `Desatualizado`; sem snapshot anterior, renderizar anéis neutros. Não atualizar `RetrievedAt` em erro ou parcial.
+`WaitAsync(cancellationToken)` aguarda e enfileira refreshes concorrentes do botão e do timer; não descarta uma chamada, e o `finally` só libera o semáforo depois de uma aquisição bem-sucedida. Para uma resposta parcial, `Render(_lastGoodSnapshot ?? snapshot)` preserva o último snapshot completo e sua hora quando ele existe; sem snapshot completo anterior, renderiza os campos utilizáveis do parcial e placeholders para os inválidos. O `RetrievedAt` parcial nunca é exibido como hora do último snapshot completo, nem o parcial é atribuído a `_lastGoodSnapshot`. Se houver falha com snapshot anterior, manter anéis e hora anterior e acrescentar `Desatualizado`; sem snapshot anterior, renderizar anéis neutros. Não atualizar `RetrievedAt` em erro ou parcial.
 - [ ] **Step 6: Configurar o timer sem custo oculto.** O timer de 60 segundos roda somente enquanto a janela estiver visível; ao ocultar, parar o timer; ao restaurar, iniciar e atualizar se o snapshot tiver mais de 60 segundos. O app-server permanece controlado pelo app e não há polling enquanto o painel estiver oculto.
 - [ ] **Step 7: Validar UI e checks.** Execute os checks Core, `rtk dotnet build MyAiUsage.sln -c Debug -p:Platform=x64 -warnaserror`, e teste manualmente todos os buckets, campos ausentes, 49/50/79/80/100%, resposta parcial e falha após snapshot válido.
 - [ ] **Step 8: Commitar o painel.** Execute `rtk git diff --check`, depois:
