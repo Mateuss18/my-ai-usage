@@ -9,3 +9,7 @@
 
 # Local packaging output
 artifacts/
+
+# Local agent state
+.serena/
+.worktrees/
