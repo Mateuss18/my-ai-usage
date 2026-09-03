@@ -59,6 +59,8 @@ static async Task CheckClientAsync()
     await CheckAuthenticatedSequenceAsync();
     await CheckStartDisposeRaceAsync();
     await CheckAuthenticationErrorAsync();
+    await CheckAuthenticationRetryAsync();
+    await CheckBrokenPipeAsync();
     await CheckEndOfStreamAsync();
     await CheckInvalidJsonAsync();
     await CheckTimeoutAsync();
@@ -118,6 +120,56 @@ static async Task CheckAuthenticationErrorAsync()
         var error = await AssertThrowsAsync<CodexClientException>(
             () => client.StartAsync(), "classifies authentication errors");
         Assert(error.Kind == CodexClientErrorKind.AuthenticationRequired, "uses the authentication error kind");
+    });
+}
+
+static async Task CheckAuthenticationRetryAsync()
+{
+    await WithFakeCodexAsync("""
+    @echo off
+    echo {"id":1,"error":{"message":"authentication required"}}
+    """, async client =>
+    {
+        var error = await AssertThrowsAsync<CodexClientException>(
+            () => client.StartAsync(), "classifies authentication errors before retry");
+        Assert(error.Kind == CodexClientErrorKind.AuthenticationRequired, "keeps the authentication error kind before retry");
+
+        var fakeCodex = Path.Combine(Environment.GetEnvironmentVariable("PATH")!.Split(';')[0], "codex.cmd");
+        await File.WriteAllTextAsync(fakeCodex, """
+        @echo off
+        setlocal EnableExtensions
+        :loop
+        set "line="
+        set /p "line="
+        if errorlevel 1 exit /b 0
+        echo(%line%| findstr /c:"initialize" >nul
+        if not errorlevel 1 echo {"id":2,"result":{"ok":true}}
+        goto loop
+        """.Replace("\n", "\r\n"));
+
+        await client.StartAsync();
+    });
+}
+
+static async Task CheckBrokenPipeAsync()
+{
+    await WithFakeCodexAsync("""
+    @echo off
+    setlocal
+    echo {"id":1,"result":{"ok":true}}
+    :loop
+    set "line="
+    set /p "line="
+    if errorlevel 1 exit /b 0
+    goto loop
+    """, async client =>
+    {
+        await client.StartAsync();
+        SetClientInput(client, new StreamWriter(new FailingWriteStream()));
+
+        var error = await AssertThrowsAsync<CodexClientException>(
+            () => client.ReadRateLimitsAsync(), "classifies broken pipes");
+        Assert(error.Kind == CodexClientErrorKind.EndOfStream, "uses the EOF error kind for broken pipes");
     });
 }
 
@@ -303,6 +355,11 @@ static Process? GetClientProcess(CodexClient client) =>
         .GetField("_process", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
         ?.GetValue(client) as Process;
 
+static void SetClientInput(CodexClient client, StreamWriter input) =>
+    typeof(CodexClient)
+        .GetField("_input", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+        .SetValue(client, input);
+
 static async Task<bool> WaitForExitAsync(Process process)
 {
     for (var attempt = 0; attempt < 40; attempt++)
@@ -355,4 +412,10 @@ static async Task StopProcessAsync(Process process)
     catch (TimeoutException)
     {
     }
+}
+
+sealed class FailingWriteStream : MemoryStream
+{
+    public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default) =>
+        ValueTask.FromException(new IOException("broken pipe"));
 }

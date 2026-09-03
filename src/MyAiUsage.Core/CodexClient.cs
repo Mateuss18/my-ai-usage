@@ -98,31 +98,39 @@ public sealed class CodexClient : IAsyncDisposable
         }
         catch (CodexClientException)
         {
-            await DisposeAsync();
+            await ResetTransportAsync();
             throw;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            await DisposeAsync();
+            await ResetTransportAsync();
             throw Cancelled();
         }
         catch (OperationCanceledException)
         {
-            await DisposeAsync();
+            await ResetTransportAsync();
             throw new CodexClientException(
                 CodexClientErrorKind.Timeout,
                 "A conexão com o Codex excedeu o tempo limite.");
         }
         catch (JsonException)
         {
-            await DisposeAsync();
+            await ResetTransportAsync();
             throw new CodexClientException(
                 CodexClientErrorKind.InvalidJson,
                 "O Codex retornou JSON inválido.");
         }
+        catch (IOException error)
+        {
+            await ResetTransportAsync();
+            throw new CodexClientException(
+                CodexClientErrorKind.EndOfStream,
+                "O codex app-server encerrou sem responder.",
+                error);
+        }
         catch (Exception)
         {
-            await DisposeAsync();
+            await ResetTransportAsync();
             throw new CodexClientException(
                 CodexClientErrorKind.ProtocolError,
                 "O Codex não aceitou a solicitação.");
@@ -163,11 +171,7 @@ public sealed class CodexClient : IAsyncDisposable
                 or CodexClientErrorKind.InvalidJson
                 or CodexClientErrorKind.ProtocolError)
         {
-            if (_disposeTask is null)
-            {
-                await DisposeAsync();
-            }
-
+            await ResetTransportAsync();
             throw;
         }
         catch (CodexClientException)
@@ -176,20 +180,12 @@ public sealed class CodexClient : IAsyncDisposable
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            if (_disposeTask is null)
-            {
-                await DisposeAsync();
-            }
-
+            await ResetTransportAsync();
             throw Cancelled();
         }
         catch (OperationCanceledException)
         {
-            if (_disposeTask is null)
-            {
-                await DisposeAsync();
-            }
-
+            await ResetTransportAsync();
             throw new CodexClientException(
                 CodexClientErrorKind.Timeout,
                 "A conexão com o Codex excedeu o tempo limite.");
@@ -199,6 +195,14 @@ public sealed class CodexClient : IAsyncDisposable
             throw new CodexClientException(
                 CodexClientErrorKind.InvalidJson,
                 "O Codex retornou JSON inválido.");
+        }
+        catch (IOException error)
+        {
+            await ResetTransportAsync();
+            throw new CodexClientException(
+                CodexClientErrorKind.EndOfStream,
+                "O codex app-server encerrou sem responder.",
+                error);
         }
         finally
         {
@@ -303,16 +307,37 @@ public sealed class CodexClient : IAsyncDisposable
     private async Task DisposeCoreAsync()
     {
         _lifetime.Cancel();
+        await ResetTransportAsync();
+        _lifetime.Dispose();
+    }
+
+    private async Task ResetTransportAsync()
+    {
+        Process? process;
+        StreamWriter? input;
+        StreamReader? output;
+        Task? stderrDrain;
+
+        lock (_disposeLock)
+        {
+            process = _process;
+            input = _input;
+            output = _output;
+            stderrDrain = _stderrDrain;
+            _process = null;
+            _input = null;
+            _output = null;
+            _stderrDrain = null;
+        }
 
         try
         {
-            _input?.Close();
+            input?.Close();
         }
         catch (IOException)
         {
         }
 
-        var process = _process;
         if (process is not null)
         {
             try
@@ -338,21 +363,20 @@ public sealed class CodexClient : IAsyncDisposable
             }
         }
 
-        if (_stderrDrain is not null)
+        if (stderrDrain is not null)
         {
             try
             {
-                await _stderrDrain;
+                await stderrDrain;
             }
             catch (OperationCanceledException)
             {
             }
         }
 
-        _output?.Dispose();
-        _input?.Dispose();
+        output?.Dispose();
+        input?.Dispose();
         process?.Dispose();
-        _lifetime.Dispose();
     }
 
     private CodexClientException EndOfStream()
