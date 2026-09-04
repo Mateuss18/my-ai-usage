@@ -363,7 +363,7 @@ rtk git commit -m "feat: show Codex quota states"
 #### Delivery
 
 - [x] Final review: PASS
-- [ ] Merge request created
+- [x] Merge request created - https://github.com/Mateuss18/my-ai-usage/pull/11
 
 ---
 
