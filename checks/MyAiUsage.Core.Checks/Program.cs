@@ -3,9 +3,25 @@ using System.Text.Json;
 using MyAiUsage.Core;
 
 CheckParser();
+CheckPresentation();
 await CheckClientAsync();
 
 Console.WriteLine("Core checks passed.");
+
+static void CheckPresentation()
+{
+    Assert(QuotaPresentation.WindowTitle(300) == "Janela de 5 horas", "formats hours");
+    Assert(QuotaPresentation.WindowTitle(10080) == "Janela de 7 dias", "formats days");
+    Assert(QuotaPresentation.UsageColor(49) == "green", "uses green below 50");
+    Assert(QuotaPresentation.UsageColor(50) == "yellow", "uses yellow at 50");
+    Assert(QuotaPresentation.UsageColor(79) == "yellow", "uses yellow below 80");
+    Assert(QuotaPresentation.UsageColor(80) == "red", "uses red at 80");
+    Assert(QuotaPresentation.UsageColor(null) == "neutral", "uses neutral for unknown");
+    Assert(QuotaPresentation.UsageColor(101) == "neutral", "uses neutral outside the valid range");
+    Assert(QuotaPresentation.UsageState(42) == "Disponível", "shows available state");
+    Assert(QuotaPresentation.UsageState(100) == "Limite atingido", "shows limit-reached state");
+    Assert(QuotaPresentation.UsageState(null) == "Uso desconhecido", "shows unknown state");
+}
 
 static void CheckParser()
 {

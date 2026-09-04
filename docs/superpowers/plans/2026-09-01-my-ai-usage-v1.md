@@ -349,6 +349,20 @@ rtk git commit -m "feat: show Codex quota states"
 
 **Saída:** o painel apresenta cada janela com informação equivalente para teclado/leitor de tela e nunca apaga valor válido por causa de erro ou resposta parcial.
 
+#### Remediation
+
+##### Round 1 review
+
+- [x] [NON_CRITICAL] Corrigir literais visíveis com UTF-8 corrompido em `MainWindow.xaml`, `MainWindow.xaml.cs` e `QuotaRing.xaml.cs`.
+- [x] [NON_CRITICAL] Fazer os checks executáveis chamarem a lógica de apresentação de produção e cobrirem estados disponível, limite atingido e desconhecido.
+- [ ] [NON_CRITICAL] Executar e registrar a validação manual de buckets, campos ausentes, limites, resposta parcial e falha após snapshot válido.
+  - Parcial (2026-09-03): o usuário confirmou que o app MSIX abriu pelo Visual Studio; os cenários de dados e falha ainda não foram exercitados individualmente.
+
+#### Delivery
+
+- [ ] Final review: PASS
+- [ ] Merge request created
+
 ---
 
 ### Task 4: Conectar tray, auto-start, instância única e encerramento

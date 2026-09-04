@@ -3,5 +3,19 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="My AI Usage">
-    <Grid AutomationProperties.Name="My AI Usage" />
+    <Grid x:Name="Root" AutomationProperties.Name="My AI Usage" Loaded="OnLoaded">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <StackPanel Margin="24" Spacing="8">
+            <TextBlock Text="Quotas do Codex" FontSize="28" FontWeight="SemiBold" />
+            <TextBlock x:Name="StatusText" Text="Carregando" AutomationProperties.LiveSetting="Polite" />
+            <TextBlock x:Name="LastUpdatedText" Text="Último snapshot completo: indisponível" />
+            <Button Content="Atualizar" Click="OnRefreshClicked" AutomationProperties.Name="Atualizar quotas do Codex" />
+        </StackPanel>
+        <ScrollViewer Grid.Row="1" Padding="24,0,24,24">
+            <StackPanel x:Name="QuotaPanel" Spacing="24" />
+        </ScrollViewer>
+    </Grid>
 </Window>
