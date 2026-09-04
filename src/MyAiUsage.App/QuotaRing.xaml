@@ -21,6 +21,7 @@
                        FontSize="24"
                        FontWeight="SemiBold" />
         </Grid>
+        <TextBlock x:Name="UsageText" TextAlignment="Center" TextWrapping="Wrap" />
         <TextBlock x:Name="TitleText" TextAlignment="Center" TextWrapping="Wrap" />
         <TextBlock x:Name="ResetText" TextAlignment="Center" TextWrapping="Wrap" />
         <TextBlock x:Name="StateText" TextAlignment="Center" FontWeight="SemiBold" />

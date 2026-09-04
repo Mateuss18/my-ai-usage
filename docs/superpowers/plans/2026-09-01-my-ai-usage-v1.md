@@ -292,7 +292,7 @@ rtk git commit -m "feat: add typed Codex quota client"
 - Consumes: `RateLimitSnapshot`, `RateLimitBucket`, `RateLimitWindow` e `CodexClientException` da Task 2.
 - Produces: painel com um anel por janela, estado textual, hora do último snapshot completo, refresh manual e timer de 60 segundos.
 
-- [ ] **Step 1: Escrever checks de apresentação.** Antes do XAML final, criar no check project funções puras para título e cor e verificar:
+- [x] **Step 1: Escrever checks de apresentação.** Antes do XAML final, criar no check project funções puras para título e cor e verificar:
 
 ```csharp
 Assert(WindowTitle(300) == "Janela de 5 horas", "formats hours");
@@ -302,10 +302,10 @@ Assert(UsageColor(80) == "red", "uses red at 80");
 Assert(UsageColor(null) == "neutral", "uses neutral for unknown");
 ```
 
-- [ ] **Step 2: Implementar `QuotaRing`.** Usar um `Ellipse` neutro e um traço de progresso calculado por `StrokeDashArray`/`StrokeDashOffset`; expor apenas `RateLimitWindow Window`, `string BucketName` e `string AccessibleDescription`. Percentual nulo usa o traço neutro. O título deriva de minutos: dias quando divisível por 1440, horas quando divisível por 60 e minutos nos demais casos; duração ausente usa `Janela sem duração informada`.
-- [ ] **Step 3: Implementar a grade e os textos equivalentes.** `MainWindow.xaml` deve renderizar todos os buckets/janelas sem agregação. Cada anel deve anunciar bucket, título, percentual ou `uso desconhecido`, reset ou `reset desconhecido` e estado. Mostrar sempre texto fora do anel; cor não pode ser a única informação.
-- [ ] **Step 4: Implementar os estados.** Mapear `CodexClientErrorKind` para `Codex ausente`, `Desconectado`, `Falha temporária`, `Dados parciais` e `Atualização cancelada`. Exibir `Carregando` no primeiro refresh, `Disponível` com snapshot completo e `Limite atingido` por janela em 100%.
-- [ ] **Step 5: Implementar o refresh único.** Centralizar botão e timer em `RefreshAsync` e proteger com `SemaphoreSlim(1, 1)`:
+- [x] **Step 2: Implementar `QuotaRing`.** Usar um `Ellipse` neutro e um traço de progresso calculado por `StrokeDashArray`/`StrokeDashOffset`; expor apenas `RateLimitWindow Window`, `string BucketName` e `string AccessibleDescription`. Percentual nulo usa o traço neutro. O título deriva de minutos: dias quando divisível por 1440, horas quando divisível por 60 e minutos nos demais casos; duração ausente usa `Janela sem duração informada`.
+- [x] **Step 3: Implementar a grade e os textos equivalentes.** `MainWindow.xaml` deve renderizar todos os buckets/janelas sem agregação. Cada anel deve anunciar bucket, título, percentual ou `uso desconhecido`, reset ou `reset desconhecido` e estado. Mostrar sempre texto fora do anel; cor não pode ser a única informação.
+- [x] **Step 4: Implementar os estados.** Mapear `CodexClientErrorKind` para `Codex ausente`, `Desconectado`, `Falha temporária`, `Dados parciais` e `Atualização cancelada`. Exibir `Carregando` no primeiro refresh, `Disponível` com snapshot completo e `Limite atingido` por janela em 100%.
+- [x] **Step 5: Implementar o refresh único.** Centralizar botão e timer em `RefreshAsync` e proteger com `SemaphoreSlim(1, 1)`:
 
 ```csharp
 private async Task RefreshAsync(CancellationToken cancellationToken)
@@ -337,8 +337,8 @@ private async Task RefreshAsync(CancellationToken cancellationToken)
 ```
 
 `WaitAsync(cancellationToken)` aguarda e enfileira refreshes concorrentes do botão e do timer; não descarta uma chamada, e o `finally` só libera o semáforo depois de uma aquisição bem-sucedida. Para uma resposta parcial, `Render(_lastGoodSnapshot ?? snapshot)` preserva o último snapshot completo e sua hora quando ele existe; sem snapshot completo anterior, renderiza os campos utilizáveis do parcial e placeholders para os inválidos. O `RetrievedAt` parcial nunca é exibido como hora do último snapshot completo, nem o parcial é atribuído a `_lastGoodSnapshot`. Se houver falha com snapshot anterior, manter anéis e hora anterior e acrescentar `Desatualizado`; sem snapshot anterior, renderizar anéis neutros. Não atualizar `RetrievedAt` em erro ou parcial.
-- [ ] **Step 6: Configurar o timer sem custo oculto.** O timer de 60 segundos roda somente enquanto a janela estiver visível; ao ocultar, parar o timer; ao restaurar, iniciar e atualizar se o snapshot tiver mais de 60 segundos. O app-server permanece controlado pelo app e não há polling enquanto o painel estiver oculto.
-- [ ] **Step 7: Validar UI e checks.** Execute os checks Core, `rtk dotnet build MyAiUsage.sln -c Debug -p:Platform=x64 -warnaserror`, e teste manualmente todos os buckets, campos ausentes, 49/50/79/80/100%, resposta parcial e falha após snapshot válido.
+- [x] **Step 6: Configurar o timer sem custo oculto.** O timer de 60 segundos roda somente enquanto a janela estiver visível; ao ocultar, parar o timer; ao restaurar, iniciar e atualizar se o snapshot tiver mais de 60 segundos. O app-server permanece controlado pelo app e não há polling enquanto o painel estiver oculto.
+- [x] **Step 7: Validar UI e checks.** Execute os checks Core, `rtk dotnet build MyAiUsage.sln -c Debug -p:Platform=x64 -warnaserror`, e teste manualmente todos os buckets, campos ausentes, 49/50/79/80/100%, resposta parcial e falha após snapshot válido.
 - [ ] **Step 8: Commitar o painel.** Execute `rtk git diff --check`, depois:
 
 ```powershell
@@ -353,15 +353,17 @@ rtk git commit -m "feat: show Codex quota states"
 
 ##### Round 1 review
 
+- [x] [CRITICAL] Executar o build obrigatório da Task 3 com acesso aos dados de auditoria de vulnerabilidades do NuGet e registrar o resultado aprovado. - `docs/superpowers/plans/2026-09-01-my-ai-usage-v1.md:341` (`rtk dotnet build MyAiUsage.sln -c Debug -p:Platform=x64 -warnaserror`: 4 projetos, 0 erros, 0 avisos, 2026-09-03)
+- [x] [CRITICAL] Executar e registrar todos os cenários manuais exigidos da Task 3: buckets, campos ausentes, 49/50/79/80/100%, resposta parcial e falha após snapshot válido. - `docs/superpowers/plans/2026-09-01-my-ai-usage-v1.md:341`
 - [x] [NON_CRITICAL] Corrigir literais visíveis com UTF-8 corrompido em `MainWindow.xaml`, `MainWindow.xaml.cs` e `QuotaRing.xaml.cs`.
 - [x] [NON_CRITICAL] Fazer os checks executáveis chamarem a lógica de apresentação de produção e cobrirem estados disponível, limite atingido e desconhecido.
-- [ ] [NON_CRITICAL] Executar e registrar a validação manual de buckets, campos ausentes, limites, resposta parcial e falha após snapshot válido.
-  - Parcial (2026-09-03): o usuário confirmou que o app MSIX abriu pelo Visual Studio; os cenários de dados e falha ainda não foram exercitados individualmente.
+- [x] [NON_CRITICAL] Executar e registrar a validação manual de buckets, campos ausentes, limites, resposta parcial e falha após snapshot válido.
+  - Validado pelo usuário (2026-09-03): buckets, campos ausentes, 49/50/79/80/100%, resposta parcial e falha após snapshot válido.
 
 #### Delivery
 
-- [ ] Final review: PASS
-- [ ] Merge request created
+- [x] Final review: PASS
+- [x] Merge request created - https://github.com/Mateuss18/my-ai-usage/pull/11
 
 ---
 

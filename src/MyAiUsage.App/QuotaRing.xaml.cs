@@ -48,6 +48,7 @@ public sealed partial class QuotaRing : UserControl
         var state = QuotaPresentation.UsageState(percent);
 
         TitleText.Text = title;
+        UsageText.Text = usage;
         PercentText.Text = percent is int number ? $"{number}%" : "?";
         ResetText.Text = reset;
         StateText.Text = state;
