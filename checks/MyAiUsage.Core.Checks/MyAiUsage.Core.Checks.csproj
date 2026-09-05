@@ -9,8 +9,10 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <!-- tray callback check compiles the production source into this runner -->
   <ItemGroup>
     <ProjectReference Include="..\..\src\MyAiUsage.Core\MyAiUsage.Core.csproj" />
+    <Compile Include="..\..\src\MyAiUsage.App\TrayIcon.cs" Link="TrayIcon.cs" />
   </ItemGroup>
 
 </Project>

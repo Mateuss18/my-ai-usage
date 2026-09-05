@@ -10,6 +10,7 @@ public sealed partial class MainWindow : Window
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(60) };
     private readonly CancellationTokenSource _lifetime = new();
+    private Task? _disposeTask;
     private RateLimitSnapshot? _lastGoodSnapshot;
 
     public MainWindow()
@@ -17,7 +18,7 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         _timer.Tick += OnTimerTick;
         AppWindow.Changed += OnAppWindowChanged;
-        Closed += OnClosed;
+        AppWindow.Closing += OnAppWindowClosing;
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
@@ -50,6 +51,19 @@ public sealed partial class MainWindow : Window
         {
             await RefreshAsync(_lifetime.Token);
         }
+    }
+
+    private void OnAppWindowClosing(
+        Microsoft.UI.Windowing.AppWindow sender,
+        Microsoft.UI.Windowing.AppWindowClosingEventArgs args)
+    {
+        if (App.Current is App app && app.IsExiting)
+        {
+            return;
+        }
+
+        args.Cancel = true;
+        sender.Hide();
     }
 
     private async Task RefreshAsync(CancellationToken cancellationToken)
@@ -140,11 +154,22 @@ public sealed partial class MainWindow : Window
         _ => "Falha temporária"
     };
 
-    private async void OnClosed(object sender, WindowEventArgs args)
+    internal Task DisposeAsync()
+    {
+        return _disposeTask ??= DisposeCoreAsync();
+    }
+
+    private async Task DisposeCoreAsync()
     {
         _timer.Stop();
         _lifetime.Cancel();
-        await _client.DisposeAsync();
-        _lifetime.Dispose();
+        try
+        {
+            await _client.DisposeAsync();
+        }
+        finally
+        {
+            _lifetime.Dispose();
+        }
     }
 }
