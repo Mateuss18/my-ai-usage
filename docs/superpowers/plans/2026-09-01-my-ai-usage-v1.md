@@ -442,7 +442,7 @@ Validação da correção em 2026-09-04: `rtk dotnet build MyAiUsage.sln -c Rele
 ##### Delivery
 
 - [ ] Final review: PASS
-- [ ] Merge request created
+- [x] Merge request created: https://github.com/Mateuss18/my-ai-usage/pull/12
 
 ---
 
