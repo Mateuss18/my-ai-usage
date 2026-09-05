@@ -401,6 +401,49 @@ rtk git commit -m "feat: add tray and startup lifecycle"
 
 **Saída:** o app é residente de forma previsível, tem uma instância, o tray se recupera do Explorer e o encerramento libera o app-server.
 
+#### Issue #6: instância única e ciclo de vida do tray
+
+Escopo desta issue: Task 4, Steps 1–4 e os checks de ciclo de vida aplicáveis da Step 7. Auto-start, `StartupTaskManager` e alterações de manifest das Steps 5–6 ficam fora desta issue.
+
+##### Acceptance criteria
+
+- [x] Ao iniciar uma segunda instância, `AppInstance.FindOrRegisterForKey("my-ai-usage")` identifica a instância principal, encaminha a ativação, restaura/ativa a janela principal e encerra a secundária.
+- [x] O app cria um único ícone de tray com as APIs Win32 mínimas da Task 4, oferece as ações de abrir/restaurar e `Sair`, e libera menu, ícone e demais handles nativos no descarte.
+- [x] Fechar a janela cancela o fechamento, oculta a janela e mantém o processo e o ícone de tray residentes; abrir/restaurar pelo tray torna a mesma janela visível novamente.
+- [x] Ao receber a mensagem registrada `TaskbarCreated`, o app registra novamente o ícone de tray sem criar uma segunda instância do aplicativo.
+- [x] A ação `Sair` é segura contra chamadas repetidas, para o timer, cancela o trabalho pendente, aguarda `CodexClient.DisposeAsync`, descarta o tray e encerra o aplicativo sem deixar processo `codex app-server` órfão.
+- [x] A implementação desta issue não adiciona auto-start, `StartupTaskManager` nem altera `Package.appxmanifest` para startup.
+
+##### Verification
+
+- [x] `rtk dotnet build MyAiUsage.sln -c Release -p:Platform=x64 -warnaserror` termina com exit code 0, sem erros nem avisos.
+- [x] `rtk proxy powershell -NoProfile -Command "& '.\checks\MyAiUsage.Core.Checks\bin\x64\Release\net8.0\MyAiUsage.Core.Checks.exe'; exit $LASTEXITCODE"` termina com exit code 0 e imprime `Core checks passed.`.
+- [x] `rtk git diff --check` termina com exit code 0.
+- [ ] Check manual no Windows: com a primeira instância minimizada ou oculta, iniciar o app novamente restaura a primeira janela e o Gerenciador de Tarefas continua mostrando somente uma instância do app.
+- [ ] Check manual no Windows: fechar a janela mantém o ícone de tray e o processo residentes; a ação de abrir/restaurar do tray reexibe a mesma janela.
+- [ ] Check manual no Windows: reiniciar o Windows Explorer remove temporariamente o tray e o ícone reaparece após `TaskbarCreated`.
+- [ ] Check manual no Windows: escolher `Sair` remove o ícone, encerra o app e confirma no Gerenciador de Tarefas que não restou processo `codex app-server` iniciado pelo app.
+
+##### Remediation
+
+###### Round 1 review
+
+- [x] [CRITICAL] Decodificar somente o `LOWORD` de `lParam` nas notificações `NOTIFYICON_VERSION_4` para que os cliques esquerdo e direito acionem abrir/menu, com check executável do valor empacotado. - `src/MyAiUsage.App/TrayIcon.cs:142` (check executável imprime `Tray callback check passed.` antes dos checks Core)
+- [x] [CRITICAL] Encaminhar `AppInstance.Activated` para a `DispatcherQueue` da UI antes de acessar `Window` ou `AppWindow`. - `src/MyAiUsage.App/App.xaml.cs:66` (build Release x64 sem erros/avisos)
+- [ ] [CRITICAL] Executar e registrar os quatro checks manuais de Windows: segunda instância, fechar/restaurar pelo tray, recuperação após reiniciar o Explorer e saída sem `codex app-server` órfão. - `docs/superpowers/plans/2026-09-01-my-ai-usage-v1.md:422`
+
+###### Round 2 review
+
+- [x] [CRITICAL] Restaurar explicitamente o `OverlappedPresenter` quando a janela estiver minimizada; `AppWindow.Show()` cobre somente a janela oculta. - `src/MyAiUsage.App/App.xaml.cs` (`Restore()` condicionado a `Minimized`, compartilhado pelo tray e pela segunda instância; preserva janela maximizada)
+- [ ] [CRITICAL] Executar e registrar os quatro checks manuais de Windows contra o build revisado. - `docs/superpowers/plans/2026-09-01-my-ai-usage-v1.md:422`
+
+Validação da correção em 2026-09-04: `rtk dotnet build MyAiUsage.sln -c Release -p:Platform=x64 -warnaserror` passou com 0 erros e 0 avisos. Os checks manuais permanecem pendentes: `Get-AppxPackage *MyAiUsage*` não encontrou pacote instalado neste Windows. Na validação de restauração, minimizar a janela e reabrir tanto pelo tray quanto por uma segunda instância; repetir com a janela oculta e maximizada, confirmando que a maximização é preservada.
+
+##### Delivery
+
+- [ ] Final review: PASS
+- [ ] Merge request created
+
 ---
 
 ### Task 5: Validar, empacotar e documentar a release V1

@@ -1,9 +1,11 @@
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using MyAiUsage.Core;
 
 CheckParser();
 CheckPresentation();
+CheckTrayCallback();
 await CheckClientAsync();
 
 Console.WriteLine("Core checks passed.");
@@ -68,6 +70,27 @@ static void CheckParser()
         "rejects a response without windows");
     Assert(partial.Kind == CodexClientErrorKind.PartialData, "classifies missing windows");
     Assert(partial.Message == "Não foi possível ler as janelas de quota do Codex.", "uses the safe partial message");
+}
+
+static void CheckTrayCallback()
+{
+    var tray = (MyAiUsage.App.TrayIcon)RuntimeHelpers.GetUninitializedObject(typeof(MyAiUsage.App.TrayIcon));
+    var openCalls = 0;
+    typeof(MyAiUsage.App.TrayIcon).GetField("_open", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+        .SetValue(tray, (Action)(() => openCalls++));
+
+    var callback = new IntPtr(unchecked((long)((0xBEEF << 16) | 0x0202)));
+    typeof(MyAiUsage.App.TrayIcon).GetMethod("WndProc", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(
+        tray,
+        [
+            IntPtr.Zero,
+            0x8001u,
+            UIntPtr.Zero,
+            callback
+        ]);
+
+    Assert(openCalls == 1, "decodes the LOWORD of a packed tray callback");
+    Console.WriteLine("Tray callback check passed.");
 }
 
 static async Task CheckClientAsync()
