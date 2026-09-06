@@ -26,10 +26,11 @@ public partial class App : Application
 
     protected override async void OnLaunched(LaunchActivatedEventArgs args)
     {
+        var activation = AppInstance.GetCurrent().GetActivatedEventArgs();
         var instance = AppInstance.FindOrRegisterForKey(InstanceKey);
         if (!instance.IsCurrent)
         {
-            await instance.RedirectActivationToAsync(AppInstance.GetCurrent().GetActivatedEventArgs());
+            await instance.RedirectActivationToAsync(activation);
             Current.Exit();
             return;
         }
@@ -38,7 +39,15 @@ public partial class App : Application
         _window ??= new MainWindow();
         _dispatcherQueue = _window.DispatcherQueue;
         _instance.Activated += OnActivated;
-        OpenOrRestoreWindow();
+        if (activation.Kind == ExtendedActivationKind.StartupTask)
+        {
+            _window.AppWindow.Hide();
+        }
+        else
+        {
+            OpenOrRestoreWindow();
+        }
+
         _tray ??= new TrayIcon(WindowNative.GetWindowHandle(_window), OpenOrRestoreWindow, ExitApplicationAsync);
     }
 
@@ -68,7 +77,13 @@ public partial class App : Application
     }
 
     private void OnActivated(object? sender, AppActivationArguments args) =>
-        _dispatcherQueue?.TryEnqueue(OpenOrRestoreWindow);
+        _dispatcherQueue?.TryEnqueue(() =>
+        {
+            if (args.Kind != ExtendedActivationKind.StartupTask)
+            {
+                OpenOrRestoreWindow();
+            }
+        });
 
     private async Task ExitCoreAsync()
     {

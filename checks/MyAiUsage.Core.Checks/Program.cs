@@ -1,11 +1,15 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using System.Xml.Linq;
 using MyAiUsage.Core;
 
 CheckParser();
 CheckPresentation();
 CheckTrayCallback();
+CheckStartupManifest();
+CheckStartupStateMapping();
+await CheckUnavailableStartupAsync();
 await CheckClientAsync();
 
 Console.WriteLine("Core checks passed.");
@@ -91,6 +95,113 @@ static void CheckTrayCallback()
 
     Assert(openCalls == 1, "decodes the LOWORD of a packed tray callback");
     Console.WriteLine("Tray callback check passed.");
+}
+
+static void CheckStartupManifest()
+{
+    var directory = new DirectoryInfo(AppContext.BaseDirectory);
+    string? manifestPath = null;
+    while (directory is not null)
+    {
+        var candidate = Path.Combine(directory.FullName, "src", "MyAiUsage.App", "Package.appxmanifest");
+        if (File.Exists(candidate))
+        {
+            manifestPath = candidate;
+            break;
+        }
+
+        directory = directory.Parent;
+    }
+
+    Assert(manifestPath is not null, "finds the app manifest");
+    var document = XDocument.Load(manifestPath!);
+    XNamespace foundation = "http://schemas.microsoft.com/appx/manifest/foundation/windows10";
+    XNamespace uap5 = "http://schemas.microsoft.com/appx/manifest/uap/windows10/5";
+    var root = document.Root!;
+    var application = root.Element(foundation + "Applications")!.Element(foundation + "Application")!;
+    var extensions = application.Element(foundation + "Extensions")!;
+    var startupExtensions = extensions.Elements(uap5 + "Extension")
+        .Where(extension => (string?)extension.Attribute("Category") == "windows.startupTask")
+        .ToArray();
+
+    Assert(startupExtensions.Length == 1, "declares one startup task extension");
+    var extension = startupExtensions[0];
+    Assert((string?)extension.Attribute("Executable") == "$targetnametoken$.exe", "uses the packaged executable token");
+    Assert((string?)extension.Attribute("EntryPoint") == "Windows.FullTrustApplication", "uses the full-trust entry point");
+    var startupTask = extension.Element(uap5 + "StartupTask")!;
+    Assert((string?)startupTask.Attribute("TaskId") == "MyAiUsageStartup", "uses the startup task id");
+    Assert((string?)startupTask.Attribute("Enabled") == "true", "enables startup by default");
+    Assert(!string.IsNullOrWhiteSpace((string?)startupTask.Attribute("DisplayName")), "has a startup display name");
+    Assert(root.Element(foundation + "Capabilities")!.Elements()
+        .Any(capability => (string?)capability.Attribute("Name") == "runFullTrust"), "keeps runFullTrust");
+
+    var managerPath = Path.Combine(directory!.FullName, "src", "MyAiUsage.App", "StartupTaskManager.cs");
+    var managerSource = File.ReadAllText(managerPath);
+    Assert(managerSource.Contains("StartupTask.GetAsync", StringComparison.Ordinal), "uses native startup lookup");
+    Assert(managerSource.Contains("RequestEnableAsync", StringComparison.Ordinal), "uses native startup enable");
+    Assert(managerSource.Contains("_task.Disable", StringComparison.Ordinal), "uses native startup disable");
+}
+
+static void CheckStartupStateMapping()
+{
+    var applyState = typeof(MyAiUsage.App.StartupTaskManager).GetMethod(
+        "ApplyState",
+        System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+
+    AssertStartupStateMapping(
+        applyState,
+        Windows.ApplicationModel.StartupTaskState.Enabled,
+        MyAiUsage.App.StartupTaskState.Enabled,
+        canChange: true);
+    AssertStartupStateMapping(
+        applyState,
+        Windows.ApplicationModel.StartupTaskState.EnabledByPolicy,
+        MyAiUsage.App.StartupTaskState.EnabledByPolicy,
+        canChange: false);
+    AssertStartupStateMapping(
+        applyState,
+        Windows.ApplicationModel.StartupTaskState.Disabled,
+        MyAiUsage.App.StartupTaskState.Disabled,
+        canChange: true);
+    AssertStartupStateMapping(
+        applyState,
+        Windows.ApplicationModel.StartupTaskState.DisabledByUser,
+        MyAiUsage.App.StartupTaskState.DisabledByUser,
+        canChange: false);
+    AssertStartupStateMapping(
+        applyState,
+        Windows.ApplicationModel.StartupTaskState.DisabledByPolicy,
+        MyAiUsage.App.StartupTaskState.DisabledByPolicy,
+        canChange: false);
+}
+
+static async Task CheckUnavailableStartupAsync()
+{
+    var manager = new MyAiUsage.App.StartupTaskManager();
+    var state = await manager.GetStateAsync();
+
+    Assert(state == MyAiUsage.App.StartupTaskState.Unavailable, "reports startup unavailable outside a package");
+    Assert(!manager.CanChange, "disables startup changes when unavailable");
+    Assert(!string.IsNullOrWhiteSpace(manager.Reason), "explains why startup is unavailable");
+    Assert(await manager.SetEnabledAsync(true) == MyAiUsage.App.StartupTaskState.Unavailable, "does not enable unavailable startup");
+}
+
+static void AssertStartupStateMapping(
+    System.Reflection.MethodInfo applyState,
+    Windows.ApplicationModel.StartupTaskState nativeState,
+    MyAiUsage.App.StartupTaskState expectedState,
+    bool canChange)
+{
+    var manager = new MyAiUsage.App.StartupTaskManager();
+    var mapped = applyState.Invoke(manager, [nativeState]);
+
+    Assert(mapped is MyAiUsage.App.StartupTaskState value && value == expectedState, "maps every native startup state faithfully");
+    Assert(manager.State == expectedState, "publishes every startup state faithfully");
+    Assert(manager.CanChange == canChange, "allows changes only for user-controllable startup states");
+    if (expectedState is MyAiUsage.App.StartupTaskState.EnabledByPolicy or MyAiUsage.App.StartupTaskState.DisabledByPolicy)
+    {
+        Assert(manager.Reason.Contains("administrador", StringComparison.OrdinalIgnoreCase), "explains policy ownership");
+    }
 }
 
 static async Task CheckClientAsync()

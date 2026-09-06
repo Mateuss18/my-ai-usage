@@ -2,8 +2,9 @@
 <Package
     xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
     xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+    xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
     xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-    IgnorableNamespaces="uap rescap">
+    IgnorableNamespaces="uap uap5 rescap">
   <Identity Name="MyAiUsage" Publisher="CN=MyAiUsage" Version="0.1.0.0" />
   <Properties>
     <DisplayName>My AI Usage</DisplayName>
@@ -24,6 +25,17 @@
           Square44x44Logo="Assets\Square44x44Logo.png"
           Description="My AI Usage"
           BackgroundColor="transparent" />
+      <Extensions>
+        <uap5:Extension
+            Category="windows.startupTask"
+            Executable="$targetnametoken$.exe"
+            EntryPoint="Windows.FullTrustApplication">
+          <uap5:StartupTask
+              TaskId="MyAiUsageStartup"
+              Enabled="true"
+              DisplayName="My AI Usage" />
+        </uap5:Extension>
+      </Extensions>
     </Application>
   </Applications>
   <Capabilities>

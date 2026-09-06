@@ -13,6 +13,19 @@
             <TextBlock x:Name="StatusText" Text="Carregando" AutomationProperties.LiveSetting="Polite" />
             <TextBlock x:Name="LastUpdatedText" Text="Último snapshot completo: indisponível" />
             <Button Content="Atualizar" Click="OnRefreshClicked" AutomationProperties.Name="Atualizar quotas do Codex" />
+            <ToggleSwitch x:Name="StartupToggle"
+                          Header="Iniciar com o Windows"
+                          OnContent="Ligado"
+                          OffContent="Desligado"
+                          IsEnabled="False"
+                          Toggled="OnStartupToggled"
+                          AutomationProperties.Name="Iniciar My AI Usage com o Windows" />
+            <TextBlock x:Name="StartupStateText"
+                       AutomationProperties.Name="Estado do auto-start"
+                       AutomationProperties.LiveSetting="Polite" />
+            <TextBlock x:Name="StartupReasonText"
+                       TextWrapping="Wrap"
+                       AutomationProperties.Name="Motivo do auto-start" />
         </StackPanel>
         <ScrollViewer Grid.Row="1" Padding="24,0,24,24">
             <StackPanel x:Name="QuotaPanel" Spacing="24" />
