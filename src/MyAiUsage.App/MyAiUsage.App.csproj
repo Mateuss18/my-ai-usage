@@ -23,4 +23,11 @@
     </AppxManifest>
   </ItemGroup>
 
+  <Target Name="ResolveStartupTaskExecutable" AfterTargets="AfterGenerateAppxManifest">
+    <XmlPoke
+        XmlInputPath="$(FinalAppxManifestName)"
+        Query="/*[local-name()='Package']/*[local-name()='Applications']/*[local-name()='Application']/*[local-name()='Extensions']/*[local-name()='Extension'][@Category='windows.startupTask']/@Executable"
+        Value="$(TargetName).exe" />
+  </Target>
+
 </Project>

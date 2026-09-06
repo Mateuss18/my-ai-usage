@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using MyAiUsage.Core;
 
@@ -7,11 +8,13 @@ namespace MyAiUsage.App;
 public sealed partial class MainWindow : Window
 {
     private readonly CodexClient _client = new();
+    private readonly StartupTaskManager _startupTaskManager = new();
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(60) };
     private readonly CancellationTokenSource _lifetime = new();
     private Task? _disposeTask;
     private RateLimitSnapshot? _lastGoodSnapshot;
+    private bool _updatingStartupToggle;
 
     public MainWindow()
     {
@@ -23,8 +26,72 @@ public sealed partial class MainWindow : Window
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
+        await RefreshStartupTaskAsync();
+        if (!AppWindow.IsVisible)
+        {
+            return;
+        }
+
         _timer.Start();
         await RefreshAsync(_lifetime.Token);
+    }
+
+    private async Task RefreshStartupTaskAsync()
+    {
+        await _startupTaskManager.GetStateAsync();
+        ApplyStartupTaskState();
+    }
+
+    private async void OnStartupToggled(object sender, RoutedEventArgs e)
+    {
+        if (_updatingStartupToggle)
+        {
+            return;
+        }
+
+        var enabled = StartupToggle.IsOn;
+        if (!(_startupTaskManager.State == StartupTaskState.Disabled && enabled)
+            && !(_startupTaskManager.State == StartupTaskState.Enabled && !enabled))
+        {
+            ApplyStartupTaskState();
+            return;
+        }
+
+        _updatingStartupToggle = true;
+        try
+        {
+            await _startupTaskManager.SetEnabledAsync(enabled);
+            ApplyStartupTaskState();
+        }
+        finally
+        {
+            _updatingStartupToggle = false;
+        }
+    }
+
+    private void ApplyStartupTaskState()
+    {
+        _updatingStartupToggle = true;
+        try
+        {
+            StartupToggle.IsOn = _startupTaskManager.State is StartupTaskState.Enabled or StartupTaskState.EnabledByPolicy;
+            StartupToggle.IsEnabled = _startupTaskManager.CanChange;
+            StartupStateText.Text = _startupTaskManager.State switch
+            {
+                StartupTaskState.Enabled => "Estado: ativado",
+                StartupTaskState.EnabledByPolicy => "Estado: ativado por política",
+                StartupTaskState.Disabled => "Estado: desativado",
+                StartupTaskState.DisabledByUser => "Estado: desativado pelo usuário",
+                StartupTaskState.DisabledByPolicy => "Estado: desativado por política",
+                _ => "Estado: indisponível"
+            };
+            StartupReasonText.Text = _startupTaskManager.Reason;
+            AutomationProperties.SetHelpText(StartupToggle, _startupTaskManager.Reason);
+        }
+        finally
+        {
+            _updatingStartupToggle = false;
+        }
     }
 
     private async void OnRefreshClicked(object sender, RoutedEventArgs e) =>
