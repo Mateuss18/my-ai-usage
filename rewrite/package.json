@@ -1,0 +1,37 @@
+{
+  "name": "rewrite",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run build:frontend && npm run build:tauri",
+    "build:frontend": "vue-tsc --noEmit && vite build",
+    "build:tauri": "tauri build --target x86_64-pc-windows-msvc --no-bundle",
+    "lint": "npm run lint:frontend && npm run lint:rust",
+    "lint:frontend": "eslint .",
+    "lint:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check && cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features --locked -- -D warnings",
+    "typecheck": "vue-tsc --noEmit",
+    "test": "npm run test:frontend && npm run test:rust",
+    "test:frontend": "vitest run",
+    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml --locked",
+    "preview": "vite preview",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "2.11.1",
+    "vue": "3.5.42"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@tauri-apps/cli": "2.11.4",
+    "@typescript-eslint/parser": "8.70.0",
+    "@vitejs/plugin-vue": "6.0.8",
+    "eslint": "10.10.0",
+    "eslint-plugin-vue": "10.11.0",
+    "typescript": "6.0.3",
+    "vite": "8.2.2",
+    "vitest": "5.0.0",
+    "vue-tsc": "3.3.11"
+  }
+}
