@@ -6,6 +6,7 @@ using MyAiUsage.Core;
 
 CheckParser();
 CheckPresentation();
+CheckQuotaRingLayout();
 CheckTrayCallback();
 CheckStartupManifest();
 CheckStartupStateMapping();
@@ -13,6 +14,21 @@ await CheckUnavailableStartupAsync();
 await CheckClientAsync();
 
 Console.WriteLine("Core checks passed.");
+
+static void CheckQuotaRingLayout()
+{
+    var directory = new DirectoryInfo(AppContext.BaseDirectory);
+    while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "MyAiUsage.sln")))
+        directory = directory.Parent;
+
+    var xaml = XDocument.Load(Path.Combine(directory!.FullName, "src", "MyAiUsage.App", "QuotaRing.xaml"));
+    XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+    XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+    var logo = xaml.Descendants(presentation + "Image").Single(element => (string?)element.Attribute(x + "Name") == "LogoImage");
+    var percent = xaml.Descendants(presentation + "TextBlock").Single(element => (string?)element.Attribute(x + "Name") == "PercentText");
+
+    Assert(logo.Parent == percent.Parent && logo.Parent!.Name == presentation + "StackPanel", "keeps logo and percentage in separate stacked space");
+}
 
 static void CheckPresentation()
 {
@@ -80,22 +96,40 @@ static void CheckTrayCallback()
 {
     var tray = (MyAiUsage.App.TrayIcon)RuntimeHelpers.GetUninitializedObject(typeof(MyAiUsage.App.TrayIcon));
     var openCalls = 0;
+    var openedAt = (X: 0, Y: 0);
     typeof(MyAiUsage.App.TrayIcon).GetField("_open", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
-        .SetValue(tray, (Action)(() => openCalls++));
+        .SetValue(tray, (Action<int, int>)((x, y) =>
+        {
+            openCalls++;
+            openedAt = (x, y);
+        }));
 
     var callback = new IntPtr(unchecked((long)((0xBEEF << 16) | 0x0202)));
+    var callbackPoint = PackPoint(-123, 456);
     typeof(MyAiUsage.App.TrayIcon).GetMethod("WndProc", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(
         tray,
         [
             IntPtr.Zero,
             0x8001u,
-            UIntPtr.Zero,
+            callbackPoint,
             callback
         ]);
 
     Assert(openCalls == 1, "decodes the LOWORD of a packed tray callback");
+    Assert(openedAt == (-123, 456), "decodes signed version-4 callback coordinates");
+    Assert(MyAiUsage.App.TrayIcon.DecodeCallbackPoint(PackPoint(32000, -32000)) == (32000, -32000), "keeps mixed-sign callback coordinates");
+
+    Assert(MyAiUsage.App.TrayIcon.CalculatePanelPosition(960, 1079, 0, 0, 1920, 1080, 640, 640) == (640, 439), "places above a bottom-edge click");
+    Assert(MyAiUsage.App.TrayIcon.CalculatePanelPosition(10, 10, 0, 0, 1920, 1080, 640, 640) == (0, 0), "clamps a top-left click");
+    Assert(MyAiUsage.App.TrayIcon.CalculatePanelPosition(1919, 1079, 0, 0, 1920, 1080, 640, 640) == (1280, 439), "clamps a bottom-right click");
+    Assert(MyAiUsage.App.TrayIcon.CalculatePanelPosition(-100, 979, -1920, -100, 1920, 1080, 640, 640) == (-640, 339), "keeps a negative-origin monitor");
+    Assert(MyAiUsage.App.TrayIcon.CalculatePanelPosition(12, 874, 100, 200, 500, 700, 640, 640) == (100, 234), "pins the constrained width axis to its work-area origin");
+    Assert(MyAiUsage.App.TrayIcon.CalculatePanelPosition(12, 34, 100, 200, 700, 500, 640, 640) == (100, 200), "pins the constrained height axis to its work-area origin");
     Console.WriteLine("Tray callback check passed.");
 }
+
+static UIntPtr PackPoint(int x, int y) =>
+    new(unchecked((ulong)(ushort)(short)x | ((ulong)(ushort)(short)y << 16)));
 
 static void CheckStartupManifest()
 {

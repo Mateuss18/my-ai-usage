@@ -26,7 +26,7 @@ internal sealed class TrayIcon : IDisposable
     private const uint IdiApplication = 32512;
 
     private readonly IntPtr _windowHandle;
-    private readonly Action _open;
+    private readonly Action<int, int> _open;
     private readonly Func<Task> _exit;
     private readonly WindowProcDelegate _windowProc;
     private readonly uint _taskbarCreatedMessage;
@@ -35,7 +35,7 @@ internal sealed class TrayIcon : IDisposable
     private int _iconAdded;
     private int _disposed;
 
-    public TrayIcon(IntPtr windowHandle, Action open, Func<Task> exit)
+    public TrayIcon(IntPtr windowHandle, Action<int, int> open, Func<Task> exit)
     {
         ArgumentNullException.ThrowIfNull(open);
         ArgumentNullException.ThrowIfNull(exit);
@@ -142,7 +142,8 @@ internal sealed class TrayIcon : IDisposable
             switch (unchecked((uint)lParam.ToInt64()) & 0xFFFF)
             {
                 case WmLButtonUp:
-                    _open();
+                    var point = DecodeCallbackPoint(wParam);
+                    _open(point.X, point.Y);
                     return IntPtr.Zero;
                 case WmRButtonUp:
                     ShowMenu();
@@ -192,7 +193,7 @@ internal sealed class TrayIcon : IDisposable
             var command = TrackPopupMenuEx(menu, TpmRightButton | TpmRetCmd, point.X, point.Y, _windowHandle, IntPtr.Zero);
             if (command == OpenCommand)
             {
-                _open();
+                _open(point.X, point.Y);
             }
             else if (command == ExitCommand)
             {
@@ -217,6 +218,40 @@ internal sealed class TrayIcon : IDisposable
         {
             // The app owns the shutdown task and remains responsible for reporting its errors.
         }
+    }
+
+    internal static (int X, int Y) DecodeCallbackPoint(UIntPtr packedPoint)
+    {
+        var value = packedPoint.ToUInt64();
+        return (unchecked((short)(value & 0xFFFF)), unchecked((short)((value >> 16) & 0xFFFF)));
+    }
+
+    internal static (int X, int Y) CalculatePanelPosition(
+        int clickX,
+        int clickY,
+        int workLeft,
+        int workTop,
+        int workWidth,
+        int workHeight,
+        int panelWidth,
+        int panelHeight)
+    {
+        var preferredX = (long)clickX - panelWidth / 2;
+        var preferredY = (long)clickY - panelHeight;
+        return (
+            ClampAxis(preferredX, workLeft, workWidth, panelWidth),
+            ClampAxis(preferredY, workTop, workHeight, panelHeight));
+    }
+
+    private static int ClampAxis(long preferred, int workOrigin, int workExtent, int panelExtent)
+    {
+        if (workExtent <= panelExtent)
+        {
+            return workOrigin;
+        }
+
+        var maximum = (long)workOrigin + workExtent - panelExtent;
+        return (int)Math.Clamp(preferred, (long)workOrigin, maximum);
     }
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]

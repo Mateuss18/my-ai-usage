@@ -27,7 +27,10 @@
                        TextWrapping="Wrap"
                        AutomationProperties.Name="Motivo do auto-start" />
         </StackPanel>
-        <ScrollViewer Grid.Row="1" Padding="24,0,24,24">
+        <ScrollViewer Grid.Row="1"
+                      Padding="24,0,24,24"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
             <StackPanel x:Name="QuotaPanel" Spacing="24" />
         </ScrollViewer>
     </Grid>

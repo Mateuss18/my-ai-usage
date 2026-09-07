@@ -3,6 +3,7 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.Windows.AppLifecycle;
 using WinRT.Interop;
+using Windows.Graphics;
 
 namespace MyAiUsage.App;
 
@@ -48,14 +49,30 @@ public partial class App : Application
             OpenOrRestoreWindow();
         }
 
-        _tray ??= new TrayIcon(WindowNative.GetWindowHandle(_window), OpenOrRestoreWindow, ExitApplicationAsync);
+        _tray ??= new TrayIcon(WindowNative.GetWindowHandle(_window), OpenOrRestoreWindowAt, ExitApplicationAsync);
     }
 
     public void OpenOrRestoreWindow()
     {
+        OpenOrRestoreWindowAt(null, null);
+    }
+
+    private void OpenOrRestoreWindowAt(int x, int y)
+    {
+        OpenOrRestoreWindowAt((int?)x, (int?)y);
+    }
+
+    private void OpenOrRestoreWindowAt(int? x, int? y)
+    {
         if (_window is null || _isExiting)
         {
             return;
+        }
+
+        _window.PrepareForOpen();
+        if (x is int clickX && y is int clickY)
+        {
+            _window.PositionAbove(new PointInt32(clickX, clickY));
         }
 
         _window.AppWindow.Show();

@@ -15,11 +15,29 @@
                     <RotateTransform Angle="-90" />
                 </Ellipse.RenderTransform>
             </Ellipse>
-            <TextBlock x:Name="PercentText"
+            <StackPanel Spacing="4"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+                <Image x:Name="LogoImage"
+                       Width="52"
+                       Height="52"
                        HorizontalAlignment="Center"
-                       VerticalAlignment="Center"
-                       FontSize="24"
-                       FontWeight="SemiBold" />
+                       Stretch="Uniform"
+                       Source="ms-appx:///Assets/gpt-icon-black.png"
+                       ImageFailed="OnLogoImageFailed"
+                       IsHitTestVisible="False"
+                       AutomationProperties.AccessibilityView="Raw" />
+                <TextBlock x:Name="LogoFallbackText"
+                           Text="Codex"
+                           Visibility="Collapsed"
+                           HorizontalAlignment="Center"
+                           IsHitTestVisible="False"
+                           AutomationProperties.Name="Codex" />
+                <TextBlock x:Name="PercentText"
+                           HorizontalAlignment="Center"
+                           FontSize="24"
+                           FontWeight="SemiBold" />
+            </StackPanel>
         </Grid>
         <TextBlock x:Name="UsageText" TextAlignment="Center" TextWrapping="Wrap" />
         <TextBlock x:Name="TitleText" TextAlignment="Center" TextWrapping="Wrap" />

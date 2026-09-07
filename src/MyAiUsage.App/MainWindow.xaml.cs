@@ -1,12 +1,15 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Windowing;
 using MyAiUsage.Core;
+using Windows.Graphics;
 
 namespace MyAiUsage.App;
 
 public sealed partial class MainWindow : Window
 {
+    private const int PanelSize = 640;
     private readonly CodexClient _client = new();
     private readonly StartupTaskManager _startupTaskManager = new();
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
@@ -19,9 +22,45 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        ConfigurePanel();
         _timer.Tick += OnTimerTick;
         AppWindow.Changed += OnAppWindowChanged;
         AppWindow.Closing += OnAppWindowClosing;
+        Activated += OnWindowActivated;
+    }
+
+    internal void PrepareForOpen() => ConfigurePanel();
+
+    internal void PositionAbove(PointInt32 clickPoint)
+    {
+        var displayArea = DisplayArea.GetFromPoint(clickPoint, DisplayAreaFallback.Nearest);
+        var workArea = displayArea.WorkArea;
+        var position = TrayIcon.CalculatePanelPosition(
+            clickPoint.X,
+            clickPoint.Y,
+            workArea.X,
+            workArea.Y,
+            workArea.Width,
+            workArea.Height,
+            PanelSize,
+            PanelSize);
+        AppWindow.Move(new PointInt32(position.X, position.Y));
+    }
+
+    private void ConfigurePanel()
+    {
+        if (AppWindow.Presenter is OverlappedPresenter presenter)
+        {
+            presenter.IsResizable = false;
+            presenter.IsMaximizable = false;
+            if (presenter.State == OverlappedPresenterState.Maximized)
+            {
+                presenter.Restore();
+            }
+        }
+
+        // AppWindow uses Win32 screen-coordinate pixels for both size and position.
+        AppWindow.Resize(new SizeInt32(PanelSize, PanelSize));
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
@@ -99,6 +138,15 @@ public sealed partial class MainWindow : Window
 
     private async void OnTimerTick(object? sender, object e) =>
         await RefreshAsync(_lifetime.Token);
+
+    private void OnWindowActivated(object sender, WindowActivatedEventArgs args)
+    {
+        if (args.WindowActivationState == WindowActivationState.Deactivated
+            && (App.Current is not App app || !app.IsExiting))
+        {
+            AppWindow.Hide();
+        }
+    }
 
     private async void OnAppWindowChanged(Microsoft.UI.Windowing.AppWindow sender, Microsoft.UI.Windowing.AppWindowChangedEventArgs args)
     {
