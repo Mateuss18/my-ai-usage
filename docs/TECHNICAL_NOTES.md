@@ -182,3 +182,29 @@ Já existem utilitários Windows para Codex e Claude. Isso valida o problema, ma
 2. A V1 suporta Windows 11.
 3. O auto-start padrão e o início oculto fazem parte da V1.
 4. O desempenho será avaliado pelos limites registrados na matriz: abertura em até 5 s, working set de até 100 MB oculto e 200 MB aberto após 5 min, e CPU média abaixo de 2% oculto fora do refresh.
+
+## Issue #8 — validação do runtime Codex no Windows, Round 1
+
+Execução em 2026-09-07, America/Sao_Paulo, no checkout `feature/issue-8-runtime-validation`, com `HEAD`/`main` em `532b92736ef082c0fdc8ec8e994d2161feed05e7`. O estado inicial tinha somente a spec local não rastreada; nenhuma operação Git foi feita.
+
+O source final foi compilado em Release/x64. O artefato testado foi `C:\Users\mateu\Desktop\Projetos\my-ai-usage\src\MyAiUsage.App\bin\x64\Release\net8.0-windows10.0.22000.0\MyAiUsage.App.exe`, SHA-256 `718EF48A1E1AA394C8F20E9EE4E1FDA7A702939E4D85AA657BB1D80FD8FC2E63`. Windows `10.0.26200.0`, SDK `8.0.424`, Codex CLI `0.153.4`; `codex login status` confirmou sessão autenticada sem expor identidade. O pacote instalado anteriormente e seu executável desempacotado foram hash-checkados e divergiram do artefato final, portanto não foram usados como evidência.
+
+### Resultado da matriz
+
+O executável solto final encerrou antes de `OnLaunched`, com processo `-532462766` (`0xE0434352`). O log real do Windows registrou `System.TypeInitializationException` por `COMException 0x80040154 (REGDB_E_CLASSNOTREG)` no auto-inicializador de deployment do Windows App SDK: o binário exige identidade de pacote. `dotnet run` também não oferece rota válida: o perfil `MsixPackage` não é suportado e o perfil padrão resolveu um caminho sem o subdiretório x64.
+
+Por esse blocker, S1 autenticado, S2 logout, S3 Codex ausente do PATH, S4 rede/timeout e S5 resposta parcial foram marcados `BLOCKED/UNEXECUTED`; não houve simulação contada como teste manual. O spike Console teve uma leitura real autenticada bem-sucedida, mas é evidência suplementar do CLI/app-server, não da aplicação WinUI nem da UI renderizada. S6 tem somente inspeção parcial do WER e confirma que a falha de inicialização não deixou filho app-owned; `Sair` e encerramento durante leitura ficaram não executados. S7 foi confirmado para estado inalterado: sem logout, interrupção de rede, edição persistente de PATH ou acesso a credenciais; login e resolução de Codex foram rechecados.
+
+Checks locais relevantes: `rtk dotnet restore MyAiUsage.sln` (exit 0), `rtk dotnet build MyAiUsage.sln -c Release -p:Platform=x64 -warnaserror` (exit 0), e `rtk dotnet run --project checks/MyAiUsage.Core.Checks/MyAiUsage.Core.Checks.csproj -c Release -p:Platform=x64 --no-build` (exit 0, `Tray callback check passed.`/`Core checks passed.`). Esses checks cobrem parser, unknown/partial, mensagens e cleanup sintético; não fecham a matriz manual.
+
+Nenhum defeito de produto foi corrigido: a única falha reproduzida foi a impossibilidade de executar o artefato WinUI solto sem identidade de pacote, e instalar um novo MSIX seria validação excluída nesta issue. Nenhum item do roadmap foi alterado porque nenhum cenário da aplicação foi reproduzido. Evidências sanitizadas, incluindo snapshot/hash, matriz, diagnósticos, processos e restauração, estão em `C:\Users\mateu\Desktop\Projetos\my-ai-usage\artifacts\issue-8\2026-09-07-round-1`.
+
+## Issue #8 — continuação autorizada
+
+Em 2026-09-07, a continuação autorizou vencer o blocker de identidade. O manifest foi incrementado para `0.1.0.3`; o MSIX correspondente foi gerado, assinado com o certificado de desenvolvimento já existente e instalado como upgrade. O pacote ficou `Ok` e o app abriu com identidade. SHA-256 do pacote: `0E617DED4F7C1C0553EE416A270779BDB6C8710CA9691D2D3FA10FAC53652466`. Os fontes de runtime usados no build ficaram vinculados pelos hashes: `MainWindow.xaml.cs` `36080C67B997812A48D464400AD3F19669EB6FB67DD232A7B3833DF418D73EEA`, `RuntimeStatus.cs` `D898D1A05AFBB0037013B3DEE9C809B6D769DD6B630CDA7EB571987166040877` e `Package.appxmanifest` `3FF610AB1A99C6979615B8DC3CF74D9281606F1C10BAD4EE8FB32BD287805380`.
+
+O cenário autenticado passou no app real: a árvore acessível da janela exibiu `Disponível`, horário do snapshot completo e as janelas de quota fornecidas pelo Codex. O cenário sem Codex no PATH também passou usando somente um PATH temporário no processo: a UI mostrou instrução de instalação/PATH, snapshot indisponível e uso desconhecido, sem fabricar `0%`. Após encerrar somente essa árvore, o lançamento normal voltou a exibir quotas autenticadas, provando a restauração do ambiente.
+
+Dois defeitos mínimos foram corrigidos: mensagens de executável ausente, autenticação e timeout agora incluem ações concretas; dados parciais com snapshot retido agora exibem `Dados parciais — Desatualizado`, enquanto um erro parcial sem janelas permanece identificado como `Dados parciais`. O runner focado cobre essas mensagens e a distinção parcial com/sem snapshot.
+
+Logout, indisponibilidade real de rede e resposta parcial real permanecem pendentes: logout exige restauração interativa coordenada; rede não foi interrompida; o runtime real não forneceu resposta parcial nesta execução. Os checks sintéticos não foram promovidos a evidência manual. A tentativa automatizada de acionar `Sair` no menu do tray não foi observada e também não foi contada como sucesso. Evidência atualizada: `artifacts/issue-8/2026-09-07-round-1`.

@@ -105,6 +105,8 @@ Critério de saída: os três cenários principais — autenticado, deslogado e 
 
 - [ ] Automatizar os casos de parser: bucket único, múltiplos buckets, campos nulos, JSON inválido e erro JSON-RPC.
 - [ ] Testar manualmente Codex autenticado, deslogado e ausente do `PATH`.
+  - [x] Codex autenticado e ausência temporária no `PATH` reproduzidos no app empacotado em 2026-09-07.
+  - [ ] Conta deslogada ainda exige janela de login/restauração acompanhada.
 - [ ] Testar abertura, fechamento, tray, atualização, saída e reinício do Explorer.
 - [ ] Verificar teclado, foco, leitor de tela, contraste e escalas comuns do Windows.
 - [ ] Medir tempo de abertura e memória com o painel aberto e fechado; aprovar somente com painel utilizável em até 5 s, até 100 MB de working set oculto após 5 min, até 200 MB aberto após 5 min e CPU média abaixo de 2% oculto fora do refresh.
