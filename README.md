@@ -47,3 +47,7 @@ Consulte [PRODUCT.md](docs/PRODUCT.md) para o escopo e [TECHNICAL_NOTES.md](docs
 ## Licença
 
 [MIT](LICENSE)
+
+## Scaffold de rewrite Tauri + Vue
+
+O rewrite isolado fica em [`rewrite/`](rewrite/), com instruções próprias em [`rewrite/README.md`](rewrite/README.md). Ele é apenas um scaffold Tauri 2 + Vue 3; a aplicação C#/WinUI existente permanece intacta como referência.
