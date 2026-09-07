@@ -6,6 +6,7 @@ using MyAiUsage.Core;
 
 CheckParser();
 CheckPresentation();
+CheckRuntimeStates();
 CheckQuotaRingLayout();
 CheckTrayCallback();
 CheckStartupManifest();
@@ -43,6 +44,16 @@ static void CheckPresentation()
     Assert(QuotaPresentation.UsageState(42) == "Disponível", "shows available state");
     Assert(QuotaPresentation.UsageState(100) == "Limite atingido", "shows limit-reached state");
     Assert(QuotaPresentation.UsageState(null) == "Uso desconhecido", "shows unknown state");
+}
+
+static void CheckRuntimeStates()
+{
+    Assert(MyAiUsage.App.RuntimeStatus.Partial(hasSnapshot: false) == "Dados parciais", "identifies partial data without stale values");
+    Assert(MyAiUsage.App.RuntimeStatus.Partial(hasSnapshot: true) == "Dados parciais — Desatualizado", "identifies retained partial data as stale");
+    Assert(MyAiUsage.App.RuntimeStatus.ForError(CodexClientErrorKind.ExecutableNotFound).Contains("PATH", StringComparison.Ordinal), "gives actionable PATH guidance");
+    Assert(MyAiUsage.App.RuntimeStatus.ForError(CodexClientErrorKind.AuthenticationRequired).Contains("codex login", StringComparison.Ordinal), "gives actionable login guidance");
+    Assert(MyAiUsage.App.RuntimeStatus.ForError(CodexClientErrorKind.Timeout).Contains("conexão", StringComparison.OrdinalIgnoreCase), "gives actionable timeout guidance");
+    Assert(MyAiUsage.App.RuntimeStatus.ForError(CodexClientErrorKind.PartialData) == "Dados parciais", "keeps parser partial errors distinct");
 }
 
 static void CheckParser()

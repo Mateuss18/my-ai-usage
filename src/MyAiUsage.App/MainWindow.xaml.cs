@@ -199,7 +199,7 @@ public sealed partial class MainWindow : Window
             if (snapshot.IsPartial)
             {
                 Render(_lastGoodSnapshot ?? snapshot);
-                SetState("Dados parciais");
+                SetState(RuntimeStatus.Partial(_lastGoodSnapshot is not null));
                 return;
             }
 
@@ -213,7 +213,7 @@ public sealed partial class MainWindow : Window
             Render(_lastGoodSnapshot);
             var state = error.Kind == CodexClientErrorKind.Cancelled
                 ? "Atualização cancelada"
-                : MapError(error.Kind);
+                : RuntimeStatus.ForError(error.Kind);
             SetState(_lastGoodSnapshot is null ? state : $"{state} — Desatualizado");
         }
         finally
@@ -259,15 +259,6 @@ public sealed partial class MainWindow : Window
     }
 
     private void SetState(string state) => StatusText.Text = state;
-
-    private static string MapError(CodexClientErrorKind kind) => kind switch
-    {
-        CodexClientErrorKind.ExecutableNotFound => "Codex ausente",
-        CodexClientErrorKind.AuthenticationRequired => "Desconectado",
-        CodexClientErrorKind.PartialData => "Dados parciais",
-        CodexClientErrorKind.Cancelled => "Atualização cancelada",
-        _ => "Falha temporária"
-    };
 
     internal Task DisposeAsync()
     {
