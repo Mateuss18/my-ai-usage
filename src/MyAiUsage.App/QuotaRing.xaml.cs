@@ -59,6 +59,12 @@ public sealed partial class QuotaRing : UserControl
         AccessibleDescription = $"{_bucketName}, {title}, {usage}, {reset}, {state}";
     }
 
+    private void OnLogoImageFailed(object sender, ExceptionRoutedEventArgs e)
+    {
+        LogoImage.Visibility = Visibility.Collapsed;
+        LogoFallbackText.Visibility = Visibility.Visible;
+    }
+
     private static Windows.UI.Color ToColor(string usageColor) => usageColor switch
     {
         "green" => ColorHelper.FromArgb(255, 16, 124, 65),
