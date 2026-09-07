@@ -15,29 +15,29 @@
                     <RotateTransform Angle="-90" />
                 </Ellipse.RenderTransform>
             </Ellipse>
-            <Image x:Name="LogoImage"
-                   Width="52"
-                   Height="52"
-                   HorizontalAlignment="Center"
-                   VerticalAlignment="Center"
-                   Stretch="Uniform"
-                   Source="ms-appx:///Assets/gpt-icon-black.png"
-                   ImageFailed="OnLogoImageFailed"
-                   IsHitTestVisible="False"
-                   AutomationProperties.AccessibilityView="Raw" />
-            <TextBlock x:Name="LogoFallbackText"
-                       Text="Codex"
-                       Visibility="Collapsed"
+            <StackPanel Spacing="4"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+                <Image x:Name="LogoImage"
+                       Width="52"
+                       Height="52"
                        HorizontalAlignment="Center"
-                       VerticalAlignment="Center"
-                       Margin="0,34,0,0"
+                       Stretch="Uniform"
+                       Source="ms-appx:///Assets/gpt-icon-black.png"
+                       ImageFailed="OnLogoImageFailed"
                        IsHitTestVisible="False"
-                       AutomationProperties.Name="Codex" />
-            <TextBlock x:Name="PercentText"
-                       HorizontalAlignment="Center"
-                       VerticalAlignment="Center"
-                       FontSize="24"
-                       FontWeight="SemiBold" />
+                       AutomationProperties.AccessibilityView="Raw" />
+                <TextBlock x:Name="LogoFallbackText"
+                           Text="Codex"
+                           Visibility="Collapsed"
+                           HorizontalAlignment="Center"
+                           IsHitTestVisible="False"
+                           AutomationProperties.Name="Codex" />
+                <TextBlock x:Name="PercentText"
+                           HorizontalAlignment="Center"
+                           FontSize="24"
+                           FontWeight="SemiBold" />
+            </StackPanel>
         </Grid>
         <TextBlock x:Name="UsageText" TextAlignment="Center" TextWrapping="Wrap" />
         <TextBlock x:Name="TitleText" TextAlignment="Center" TextWrapping="Wrap" />

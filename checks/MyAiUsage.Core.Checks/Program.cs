@@ -6,6 +6,7 @@ using MyAiUsage.Core;
 
 CheckParser();
 CheckPresentation();
+CheckQuotaRingLayout();
 CheckTrayCallback();
 CheckStartupManifest();
 CheckStartupStateMapping();
@@ -13,6 +14,21 @@ await CheckUnavailableStartupAsync();
 await CheckClientAsync();
 
 Console.WriteLine("Core checks passed.");
+
+static void CheckQuotaRingLayout()
+{
+    var directory = new DirectoryInfo(AppContext.BaseDirectory);
+    while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "MyAiUsage.sln")))
+        directory = directory.Parent;
+
+    var xaml = XDocument.Load(Path.Combine(directory!.FullName, "src", "MyAiUsage.App", "QuotaRing.xaml"));
+    XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+    XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+    var logo = xaml.Descendants(presentation + "Image").Single(element => (string?)element.Attribute(x + "Name") == "LogoImage");
+    var percent = xaml.Descendants(presentation + "TextBlock").Single(element => (string?)element.Attribute(x + "Name") == "PercentText");
+
+    Assert(logo.Parent == percent.Parent && logo.Parent!.Name == presentation + "StackPanel", "keeps logo and percentage in separate stacked space");
+}
 
 static void CheckPresentation()
 {
