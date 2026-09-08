@@ -259,7 +259,8 @@ fn set_position_from_last_or_cursor<R: Runtime>(
     window: &WebviewWindow<R>,
     controller: &SharedController,
 ) -> tauri::Result<()> {
-    if let Some(origin) = controller.lock().unwrap().last_position() {
+    let last_position = controller.lock().unwrap().last_position();
+    if let Some(origin) = last_position {
         if let Some(monitor) = window
             .monitor_from_point(origin.x as f64, origin.y as f64)?
             .or(window.current_monitor()?)
@@ -307,7 +308,11 @@ fn handle_tray_click<R: Runtime>(
 }
 
 fn activate_existing<R: Runtime>(app: &AppHandle<R>, controller: &SharedController) {
-    if !controller.lock().unwrap().activate_existing() {
+    let should_activate = {
+        let mut controller = controller.lock().unwrap();
+        controller.activate_existing()
+    };
+    if !should_activate {
         return;
     }
     if let Some(window) = app.get_webview_window(MAIN_WINDOW) {
