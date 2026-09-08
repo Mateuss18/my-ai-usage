@@ -1,7 +1,0 @@
-{
-  "profiles": {
-    "MyAiUsage.App": {
-      "commandName": "MsixPackage"
-    }
-  }
-}

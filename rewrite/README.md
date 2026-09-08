@@ -1,6 +1,6 @@
-# My AI Usage — rewrite Tauri + Vue
+# My AI Usage — Tauri + Vue
 
-Scaffold isolado da reescrita do My AI Usage. O aplicativo C#/WinUI no restante do repositório continua sendo a referência legada; este diretório não migra integrações, tray, UI final ou empacotamento.
+Aplicação Tauri + Vue do My AI Usage para Windows. O runtime nativo fica em `src-tauri/` e a interface consulta o uso do Codex pelo contrato compartilhado.
 
 ## Localização e stack
 
@@ -11,7 +11,7 @@ Scaffold isolado da reescrita do My AI Usage. O aplicativo C#/WinUI no restante 
 
 ## Pré-requisitos Windows x64
 
-O ambiente verificado para este scaffold foi Windows 11 x64 (build `10.0.26200`), com Node.js `v24.13.1`, npm `11.10.0`, Rust `1.93.0` MSVC, Cargo `1.93.0` e o target `x86_64-pc-windows-msvc` instalado.
+O ambiente verificado para esta aplicação foi Windows 11 x64 (build `10.0.26200`), com Node.js `v24.13.1`, npm `11.10.0`, Rust `1.93.0` MSVC, Cargo `1.93.0` e o target `x86_64-pc-windows-msvc` instalado.
 
 Para repetir o build, instale também:
 
@@ -38,7 +38,7 @@ cargo fetch --locked --manifest-path src-tauri/Cargo.toml
 npm.cmd run tauri -- dev
 ```
 
-A página exibe um botão nativo e acessível por teclado. Ele chama o comando Rust `greet`, que responde `Hello from Rust!`. Se a ponte falhar, a mensagem aparece na própria página.
+A página exibe o painel compacto de uso e permite atualizar os dados pelo comando Rust da ponte Tauri.
 
 ## Checks
 

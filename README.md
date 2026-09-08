@@ -24,17 +24,17 @@ O projeto começa pequeno: a V1 acompanha somente o Codex. Outros provedores, co
 - O gate de desempenho é painel utilizável em até 5 s, até 100 MB de working set oculto após 5 min, até 200 MB aberto após 5 min e CPU média abaixo de 2% oculto fora do refresh.
 - Instalador mais amigável, auto-update e polimento avançado ficam para a V1.1.
 
-## Stack pretendida
+## Stack atual
 
-- C# e .NET.
-- WinUI 3 com Windows App SDK.
+- Tauri 2 com Rust.
+- Vue 3 com TypeScript e Vite.
 - `codex app-server` para acessar dados do Codex via JSON-RPC.
 
 ## Estado
 
-Contrato V1 fechado; ainda não há uma aplicação implementada. O próximo passo é o scaffold WinUI 3.
+Implementação atual em Tauri + Vue, com runtime nativo em Rust e acesso ao `codex app-server` local.
 
-Consulte [PRODUCT.md](docs/PRODUCT.md) para o escopo e [TECHNICAL_NOTES.md](docs/TECHNICAL_NOTES.md) para os achados técnicos.
+Consulte [PRODUCT.md](docs/PRODUCT.md) para o escopo e [`rewrite/README.md`](rewrite/README.md) para executar a aplicação.
 
 ## Princípios
 
@@ -48,6 +48,6 @@ Consulte [PRODUCT.md](docs/PRODUCT.md) para o escopo e [TECHNICAL_NOTES.md](docs
 
 [MIT](LICENSE)
 
-## Scaffold de rewrite Tauri + Vue
+## Aplicação Tauri + Vue
 
-O rewrite isolado fica em [`rewrite/`](rewrite/), com instruções próprias em [`rewrite/README.md`](rewrite/README.md). Ele é apenas um scaffold Tauri 2 + Vue 3; a aplicação C#/WinUI existente permanece intacta como referência.
+A aplicação fica em [`rewrite/`](rewrite/), com instruções próprias em [`rewrite/README.md`](rewrite/README.md). O runtime nativo fica em `rewrite/src-tauri/`.
