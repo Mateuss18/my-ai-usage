@@ -12,9 +12,16 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "rewrite",
-        "width": 800,
-        "height": 600
+        "width": 400,
+        "height": 520,
+        "resizable": false,
+        "maximizable": false,
+        "minimizable": false,
+        "visible": false,
+        "decorations": false,
+        "skipTaskbar": true
       }
     ],
     "security": {
