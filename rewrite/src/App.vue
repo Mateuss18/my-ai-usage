@@ -1,17 +1,19 @@
 <script setup lang="ts">
+import { onMounted, onUnmounted } from 'vue'
+
+import { getUsage } from './bridge'
 import UsagePanel from './components/usage/UsagePanel.vue'
-import { getUsageFixture } from './components/usage/usageFixtures'
+import { createUsageRefresh } from './usageRefresh'
 
-const fixture = getUsageFixture(new globalThis.URLSearchParams(globalThis.location.search).get('fixture'))
+const { provider, refresh, start, stop } = createUsageRefresh(getUsage)
 
-function refresh(): void {
-  globalThis.location.reload()
-}
+onMounted(start)
+onUnmounted(stop)
 </script>
 
 <template>
   <main class="app-shell">
-    <UsagePanel :provider="fixture" @refresh="refresh" />
+    <UsagePanel :provider="provider" @refresh="refresh" />
   </main>
 </template>
 
