@@ -7,6 +7,7 @@ use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager, PhysicalPosition, Runtime, WebviewWindow, WindowEvent};
 
+pub mod codex_provider;
 pub mod usage_contract;
 
 const MAIN_WINDOW: &str = "main";
@@ -17,6 +18,7 @@ const PANEL_HEIGHT: i32 = 520;
 const INSTANCE_ADDRESS: &str = "127.0.0.1:47619";
 
 type SharedController = Arc<Mutex<Controller>>;
+type SharedCodexProvider = Arc<Mutex<codex_provider::CodexProvider>>;
 
 fn claim_instance() -> std::io::Result<Option<TcpListener>> {
     match TcpListener::bind(INSTANCE_ADDRESS) {
@@ -320,18 +322,18 @@ fn activate_existing<R: Runtime>(app: &AppHandle<R>, controller: &SharedControll
 
 fn exit_application<R: Runtime>(app: &AppHandle<R>, controller: &SharedController) {
     if controller.lock().unwrap().exit() {
+        app.state::<SharedCodexProvider>()
+            .lock()
+            .unwrap()
+            .shutdown();
         let _ = app.remove_tray_by_id(TRAY_ID);
         app.exit(0);
     }
 }
 
 #[tauri::command]
-fn get_usage() -> usage_contract::UsageSnapshot {
-    usage_contract::UsageSnapshot {
-        schema_version: 1,
-        providers: Vec::new(),
-        fetched_at: None,
-    }
+fn get_usage(provider: tauri::State<'_, SharedCodexProvider>) -> usage_contract::UsageSnapshot {
+    provider.lock().unwrap().usage()
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -342,6 +344,9 @@ pub fn run() {
     let controller = Arc::new(Mutex::new(Controller::default()));
 
     tauri::Builder::default()
+        .manage(Arc::new(Mutex::new(
+            codex_provider::CodexProvider::default(),
+        )))
         .setup({
             let controller = Arc::clone(&controller);
             move |app| {
