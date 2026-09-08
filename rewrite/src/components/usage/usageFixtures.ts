@@ -11,6 +11,10 @@ export const usageFixtures: Record<string, ProviderUsage> = {
     id: 'claude', name: 'Claude', eyebrow: 'Anthropic', glyph: 'A', state: 'available', statusLabel: 'Updated 1 minute ago',
     quotas: [{ id: 'current-session', title: 'Current session across all supported models', percentage: 48, resetLabel: 'Resets in 3 hours and 42 minutes', color: '#fb923c', glyph: 'A' }],
   },
+  opencode: {
+    id: 'opencode', name: 'OpenCode', eyebrow: 'OpenCode', glyph: 'O', state: 'partial', statusLabel: 'Some usage data is unavailable.',
+    quotas: [{ id: 'session', title: 'Current session', percentage: null, resetLabel: 'Reset time unavailable', color: '#86efac', glyph: 'O' }],
+  },
   loading: { id: 'codex-loading', name: 'Codex', eyebrow: 'OpenAI', glyph: '✦', state: 'loading', statusLabel: 'Updating usage…', quotas: [] },
   unavailable: { id: 'codex-unavailable', name: 'Codex', eyebrow: 'OpenAI', glyph: '✦', state: 'unavailable', statusLabel: 'Usage is unavailable right now.', quotas: [] },
   error: { id: 'codex-error', name: 'Codex', eyebrow: 'OpenAI', glyph: '✦', state: 'error', statusLabel: 'Could not update usage. Try again.', quotas: [] },

@@ -28,6 +28,10 @@ npm.cmd ci
 cargo fetch --locked --manifest-path src-tauri/Cargo.toml
 ```
 
+## Contrato de uso
+
+`src/domain/usage.ts` e `src-tauri/src/usage_contract.rs` definem o mesmo DTO `ProviderUsage`. Adaptadores de Codex, OpenCode e Claude devem preencher o contrato sem levar JSON-RPC, arquivos ou comandos para a UI. Valores não expostos permanecem `null`; veja `src/domain/CONTRACT.md` para adicionar um provider.
+
 ## Desenvolvimento
 
 ```powershell

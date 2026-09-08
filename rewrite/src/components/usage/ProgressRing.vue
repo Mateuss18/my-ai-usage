@@ -2,15 +2,15 @@
 import { computed } from 'vue'
 import { clampPercentage } from './usage'
 
-interface Props { percentage: number; color: string; glyph: string; label: string }
+interface Props { percentage: number | null; color: string; glyph: string; label: string }
 const props = defineProps<Props>()
 
-const normalizedPercentage = computed(() => clampPercentage(props.percentage))
+const normalizedPercentage = computed(() => props.percentage === null ? null : clampPercentage(props.percentage))
 const ringStyle = computed(() => ({ '--ring-color': props.color, '--ring-value': `${normalizedPercentage.value}%` }))
 </script>
 
 <template>
-  <div class="progress-ring" :style="ringStyle" role="progressbar" :aria-label="label" aria-valuemin="0" aria-valuemax="100" :aria-valuenow="normalizedPercentage">
+  <div class="progress-ring" :class="{ 'progress-ring--unknown': normalizedPercentage === null }" :style="ringStyle" role="progressbar" :aria-label="label" aria-valuemin="0" aria-valuemax="100" :aria-valuenow="normalizedPercentage ?? undefined">
     <span class="progress-ring__glyph" aria-hidden="true">{{ glyph }}</span>
   </div>
 </template>
