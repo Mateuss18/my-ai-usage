@@ -76,6 +76,11 @@ impl Controller {
         self.tray_press_bounds = Some(bounds);
     }
 
+    fn cancel_tray_interaction(&mut self) {
+        self.focus_loss_anchor = None;
+        self.tray_press_bounds = None;
+    }
+
     fn tray_click(&mut self) -> TrayAction {
         let focus_loss_was_this_click = self
             .tray_press_bounds
@@ -372,30 +377,27 @@ pub fn run() {
                             exit_application(app, &tray_controller);
                         }
                     })
-                    .on_tray_icon_event(move |tray, event| {
-                        if let TrayIconEvent::Click {
+                    .on_tray_icon_event(move |tray, event| match event {
+                        TrayIconEvent::Click {
                             position,
                             rect,
                             button: MouseButton::Left,
                             button_state,
                             ..
-                        } = event
-                        {
-                            match button_state {
-                                MouseButtonState::Down => {
-                                    if let Some(bounds) = physical_rect(rect) {
-                                        click_controller.lock().unwrap().tray_press(bounds);
-                                    }
-                                }
-                                MouseButtonState::Up => {
-                                    handle_tray_click(
-                                        tray.app_handle(),
-                                        &click_controller,
-                                        position,
-                                    );
+                        } => match button_state {
+                            MouseButtonState::Down => {
+                                if let Some(bounds) = physical_rect(rect) {
+                                    click_controller.lock().unwrap().tray_press(bounds);
                                 }
                             }
+                            MouseButtonState::Up => {
+                                handle_tray_click(tray.app_handle(), &click_controller, position);
+                            }
+                        },
+                        TrayIconEvent::Click { .. } => {
+                            click_controller.lock().unwrap().cancel_tray_interaction();
                         }
+                        _ => {}
                     })
                     .build(app)?;
 
@@ -569,6 +571,26 @@ mod tests {
             width: 40,
             height: 40,
         });
+        assert_eq!(controller.tray_click(), TrayAction::Show);
+    }
+
+    #[test]
+    fn right_click_focus_loss_does_not_swallow_the_next_left_click() {
+        let mut controller = Controller::default();
+        let point = Point { x: 900, y: 1000 };
+        let tray_bounds = WorkArea {
+            x: 880,
+            y: 980,
+            width: 40,
+            height: 40,
+        };
+
+        assert_eq!(controller.tray_click(), TrayAction::Show);
+        controller.focus_gained();
+        assert!(controller.focus_lost(Some(point)));
+        controller.cancel_tray_interaction();
+        controller.tray_press(tray_bounds);
+
         assert_eq!(controller.tray_click(), TrayAction::Show);
     }
 
