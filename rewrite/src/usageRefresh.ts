@@ -65,7 +65,10 @@ export function createUsageRefresh(load: () => Promise<UsageSnapshot>, options: 
 
   function onVisibilityChange(): void {
     if (document?.hidden) clearTimer()
-    else updateTimer()
+    else {
+      updateTimer()
+      void refresh()
+    }
   }
 
   function start(): void {
@@ -73,7 +76,6 @@ export function createUsageRefresh(load: () => Promise<UsageSnapshot>, options: 
     started = true
     document?.addEventListener('visibilitychange', onVisibilityChange)
     onVisibilityChange()
-    if (!document?.hidden) void refresh()
   }
 
   function stop(): void {
@@ -91,7 +93,7 @@ function isValid(provider: ProviderUsage): boolean {
 }
 
 function toPanelProvider(source: ProviderUsage, fetchedAt: string | null, now: Date, stale = false): PanelProviderUsage {
-  const state = stale ? 'stale' : source.state
+  const state = stale ? 'stale' : source.state === 'unauthenticated' || source.state === 'not-installed' ? 'unavailable' : source.state
   const timestamp = fetchedAt ?? source.capturedAt
   return {
     id: source.id,
@@ -116,6 +118,7 @@ function statusLabel(state: PanelProviderUsage['state'], timestamp: string | nul
   if (state === 'stale') return `Last updated ${timeAgo(timestamp, now)}`
   if (state === 'available') return `Updated ${timeAgo(timestamp, now)}`
   if (state === 'partial') return `Updated ${timeAgo(timestamp, now)} — some usage data is unavailable.`
+  if (state === 'unavailable') return error ?? 'Usage is unavailable right now.'
   return error ? `${error} Try again.` : 'Could not update usage. Try again.'
 }
 

@@ -112,6 +112,40 @@ describe('live usage refresh', () => {
     expect(controller.provider.value).toMatchObject({ state: 'error', statusLabel: 'Could not update usage. Try again.', quotas: [] })
   })
 
+  it.each([
+    ['unauthenticated', 'Sign in to Codex to read usage.'],
+    ['not-installed', 'Codex is not installed.'],
+  ] as const)('maps %s to an unavailable panel state', async (state, statusLabel) => {
+    const controller = createUsageRefresh(() => Promise.resolve({
+      ...snapshot,
+      providers: [{ ...snapshot.providers[0], state, capturedAt: null, quotas: [], error: { code: state, message: statusLabel } }],
+    }))
+
+    await controller.refresh()
+
+    expect(controller.provider.value).toMatchObject({ state: 'unavailable', statusLabel, quotas: [] })
+  })
+
+  it('refreshes immediately when a hidden document becomes visible', async () => {
+    vi.useFakeTimers()
+    const document = fakeDocument(true)
+    const load = vi.fn(() => Promise.resolve(snapshot))
+    const controller = createUsageRefresh(load, { document: document as unknown as typeof globalThis.document, intervalMs: 60_000 })
+
+    controller.start()
+    expect(load).not.toHaveBeenCalled()
+
+    document.setHidden(false)
+    document.emitVisibilityChange()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(load).toHaveBeenCalledTimes(1)
+    expect(controller.provider.value.state).toBe('available')
+    controller.stop()
+    vi.useRealTimers()
+  })
+
   it('keeps one visibility listener and timer across repeated starts and stops', async () => {
     vi.useFakeTimers()
     const document = fakeDocument()
@@ -134,21 +168,24 @@ describe('live usage refresh', () => {
 
     document.setHidden(false)
     document.emitVisibilityChange()
-    await vi.advanceTimersByTimeAsync(60_000)
+    await Promise.resolve()
+    await Promise.resolve()
     expect(load).toHaveBeenCalledTimes(3)
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(load).toHaveBeenCalledTimes(4)
 
     controller.stop()
     controller.stop()
     expect(document.removeEventListener).toHaveBeenCalledTimes(1)
     await vi.advanceTimersByTimeAsync(60_000)
-    expect(load).toHaveBeenCalledTimes(3)
+    expect(load).toHaveBeenCalledTimes(4)
 
     controller.start()
     await controller.refresh()
     expect(document.addEventListener).toHaveBeenCalledTimes(2)
-    expect(load).toHaveBeenCalledTimes(4)
-    await vi.advanceTimersByTimeAsync(60_000)
     expect(load).toHaveBeenCalledTimes(5)
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(load).toHaveBeenCalledTimes(6)
 
     controller.stop()
     expect(document.removeEventListener).toHaveBeenCalledTimes(2)
