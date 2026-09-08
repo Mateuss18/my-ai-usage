@@ -1,9 +1,9 @@
-export type UsageState = 'available' | 'loading' | 'unavailable' | 'error' | 'stale'
+export type UsageState = 'available' | 'loading' | 'partial' | 'unauthenticated' | 'not-installed' | 'unavailable' | 'error' | 'stale'
 
 export interface UsageQuota {
   id: string
   title: string
-  percentage: number
+  percentage: number | null
   resetLabel: string
   color: string
   glyph: string

@@ -7,6 +7,8 @@ use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager, PhysicalPosition, Runtime, WebviewWindow, WindowEvent};
 
+pub mod usage_contract;
+
 const MAIN_WINDOW: &str = "main";
 const TRAY_ID: &str = "main-tray";
 const EXIT_MENU_ID: &str = "exit";
@@ -323,6 +325,15 @@ fn exit_application<R: Runtime>(app: &AppHandle<R>, controller: &SharedControlle
     }
 }
 
+#[tauri::command]
+fn get_usage() -> usage_contract::UsageSnapshot {
+    usage_contract::UsageSnapshot {
+        schema_version: 1,
+        providers: Vec::new(),
+        fetched_at: None,
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let Some(instance_listener) = claim_instance().expect("failed to claim app instance") else {
@@ -419,6 +430,7 @@ pub fn run() {
                 Ok(())
             }
         })
+        .invoke_handler(tauri::generate_handler![get_usage])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

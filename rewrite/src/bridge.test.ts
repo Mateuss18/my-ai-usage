@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { invoke } from '@tauri-apps/api/core'
 
-import { describeBridgeError, invokeGreeting } from './bridge'
+import { describeBridgeError, getUsage, invokeGreeting } from './bridge'
 
 // Mocked bridge check; A2 still requires the real Tauri invocation.
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
@@ -21,5 +21,12 @@ describe('frontend-to-Tauri bridge', () => {
 
     await expect(invokeGreeting()).rejects.toBe(failure)
     expect(describeBridgeError(failure)).toBe('bridge unavailable')
+  })
+
+  it('keeps the provider-neutral usage payload typed at the bridge', async () => {
+    const payload = { schemaVersion: 1 as const, providers: [], fetchedAt: null }
+    vi.mocked(invoke).mockResolvedValue(payload)
+    await expect(getUsage()).resolves.toEqual(payload)
+    expect(invoke).toHaveBeenCalledWith('get_usage')
   })
 })

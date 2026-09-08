@@ -19,6 +19,7 @@ describe('compact usage panel', () => {
   it.each([
     ['codex', 'Weekly / all models', 'role="progressbar"', 2],
     ['claude', 'Current session across all supported models', 'role="progressbar"', 1],
+    ['opencode', 'Some usage data is unavailable.', 'role="progressbar"', 1],
     ['loading', 'Updating usage', 'role="status"', 0],
     ['unavailable', 'Usage is unavailable right now.', 'role="status"', 0],
     ['error', 'Could not update usage. Try again.', 'role="alert"', 0],
@@ -45,5 +46,11 @@ describe('compact usage panel', () => {
 
   it('falls back to Codex for an unknown fixture', () => {
     expect(getUsageFixture('unknown')).toBe(usageFixtures.codex)
+  })
+
+  it('does not turn an unknown percentage into zero', async () => {
+    const html = await renderToString(createSSRApp(UsagePanel, { provider: usageFixtures.opencode }))
+    expect(html).toContain('>—</strong>')
+    expect(html).not.toContain('aria-valuenow="0"')
   })
 })

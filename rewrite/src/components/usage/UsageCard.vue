@@ -5,13 +5,13 @@ import { clampPercentage } from './usage'
 import type { UsageQuota } from './usageTypes'
 
 const props = defineProps<{ quota: UsageQuota }>()
-const percentage = computed(() => clampPercentage(props.quota.percentage))
+const percentage = computed(() => props.quota.percentage === null ? null : clampPercentage(props.quota.percentage))
 </script>
 
 <template>
   <article class="usage-card" :aria-labelledby="`${quota.id}-title`">
-    <ProgressRing :percentage="quota.percentage" :color="quota.color" :glyph="quota.glyph" :label="`${quota.title}: ${percentage}% used`" />
-    <strong class="usage-card__percentage">{{ percentage }}%</strong>
+    <ProgressRing :percentage="quota.percentage" :color="quota.color" :glyph="quota.glyph" :label="`${quota.title}: ${percentage === null ? 'unknown' : `${percentage}% used`}`" />
+    <strong class="usage-card__percentage">{{ percentage === null ? '—' : `${percentage}%` }}</strong>
     <h2 :id="`${quota.id}-title`" class="usage-card__title">{{ quota.title }}</h2>
     <p class="usage-card__reset">{{ quota.resetLabel }}</p>
   </article>
