@@ -66,12 +66,21 @@ struct PanelSize {
 struct Controller {
     state: LifecycleState,
     focus_loss_anchor: Option<Point>,
+    tray_press_bounds: Option<WorkArea>,
     just_shown: bool,
     last_position: Option<Point>,
 }
 
 impl Controller {
-    fn tray_click(&mut self, point: Point) -> TrayAction {
+    fn tray_press(&mut self, bounds: WorkArea) {
+        self.tray_press_bounds = Some(bounds);
+    }
+
+    fn tray_click(&mut self) -> TrayAction {
+        let focus_loss_was_this_click = self
+            .tray_press_bounds
+            .take()
+            .is_some_and(|bounds| self.focus_loss_anchor.is_some_and(|p| bounds.contains(p)));
         match self.state {
             LifecycleState::Exiting => TrayAction::Ignore,
             LifecycleState::Visible => {
@@ -81,7 +90,6 @@ impl Controller {
                 TrayAction::Hide
             }
             LifecycleState::Hidden => {
-                let focus_loss_was_this_click = self.focus_loss_anchor == Some(point);
                 self.focus_loss_anchor = None;
                 if focus_loss_was_this_click {
                     TrayAction::Ignore
@@ -119,6 +127,7 @@ impl Controller {
         }
         self.state = LifecycleState::Hidden;
         self.focus_loss_anchor = None;
+        self.tray_press_bounds = None;
         self.just_shown = false;
         true
     }
@@ -129,6 +138,7 @@ impl Controller {
         }
         self.state = LifecycleState::Visible;
         self.focus_loss_anchor = None;
+        self.tray_press_bounds = None;
         self.just_shown = true;
         true
     }
@@ -139,6 +149,7 @@ impl Controller {
         }
         self.state = LifecycleState::Exiting;
         self.focus_loss_anchor = None;
+        self.tray_press_bounds = None;
         self.just_shown = false;
         true
     }
@@ -152,10 +163,31 @@ impl Controller {
     }
 }
 
+impl WorkArea {
+    fn contains(&self, point: Point) -> bool {
+        point.x >= self.x
+            && point.y >= self.y
+            && point.x < self.x + self.width
+            && point.y < self.y + self.height
+    }
+}
+
 fn rounded_point(position: PhysicalPosition<f64>) -> Point {
     Point {
         x: position.x.round() as i32,
         y: position.y.round() as i32,
+    }
+}
+
+fn physical_rect(rect: tauri::Rect) -> Option<WorkArea> {
+    match (rect.position, rect.size) {
+        (tauri::Position::Physical(position), tauri::Size::Physical(size)) => Some(WorkArea {
+            x: position.x,
+            y: position.y,
+            width: size.width as i32,
+            height: size.height as i32,
+        }),
+        _ => None,
     }
 }
 
@@ -245,7 +277,7 @@ fn handle_tray_click<R: Runtime>(
     position: PhysicalPosition<f64>,
 ) {
     let point = rounded_point(position);
-    match controller.lock().unwrap().tray_click(point) {
+    match controller.lock().unwrap().tray_click() {
         TrayAction::Show => {
             if let Some(window) = app.get_webview_window(MAIN_WINDOW) {
                 if set_position_from_anchor(&window, controller, point)
@@ -343,12 +375,26 @@ pub fn run() {
                     .on_tray_icon_event(move |tray, event| {
                         if let TrayIconEvent::Click {
                             position,
+                            rect,
                             button: MouseButton::Left,
-                            button_state: MouseButtonState::Up,
+                            button_state,
                             ..
                         } = event
                         {
-                            handle_tray_click(tray.app_handle(), &click_controller, position);
+                            match button_state {
+                                MouseButtonState::Down => {
+                                    if let Some(bounds) = physical_rect(rect) {
+                                        click_controller.lock().unwrap().tray_press(bounds);
+                                    }
+                                }
+                                MouseButtonState::Up => {
+                                    handle_tray_click(
+                                        tray.app_handle(),
+                                        &click_controller,
+                                        position,
+                                    );
+                                }
+                            }
                         }
                     })
                     .build(app)?;
@@ -460,16 +506,15 @@ mod tests {
     #[test]
     fn lifecycle_handles_hidden_startup_close_focus_and_exit() {
         let mut controller = Controller::default();
-        let point = Point { x: 100, y: 200 };
 
         assert_eq!(controller.state, LifecycleState::Hidden);
-        assert_eq!(controller.tray_click(point), TrayAction::Show);
+        assert_eq!(controller.tray_click(), TrayAction::Show);
         assert_eq!(controller.state, LifecycleState::Visible);
         assert!(controller.close_requested());
         assert_eq!(controller.state, LifecycleState::Hidden);
-        assert_eq!(controller.tray_click(point), TrayAction::Show);
+        assert_eq!(controller.tray_click(), TrayAction::Show);
         assert!(controller.exit());
-        assert_eq!(controller.tray_click(point), TrayAction::Ignore);
+        assert_eq!(controller.tray_click(), TrayAction::Ignore);
         assert!(!controller.close_requested());
     }
 
@@ -478,11 +523,17 @@ mod tests {
         let mut controller = Controller::default();
         let point = Point { x: 500, y: 600 };
 
-        assert_eq!(controller.tray_click(point), TrayAction::Show);
+        assert_eq!(controller.tray_click(), TrayAction::Show);
         controller.focus_gained();
         assert!(controller.focus_lost(Some(point)));
-        assert_eq!(controller.tray_click(point), TrayAction::Ignore);
-        assert_eq!(controller.tray_click(point), TrayAction::Show);
+        controller.tray_press(WorkArea {
+            x: 490,
+            y: 590,
+            width: 40,
+            height: 40,
+        });
+        assert_eq!(controller.tray_click(), TrayAction::Ignore);
+        assert_eq!(controller.tray_click(), TrayAction::Show);
     }
 
     #[test]
@@ -490,24 +541,35 @@ mod tests {
         let mut controller = Controller::default();
         let point = Point { x: 600, y: 700 };
 
-        assert_eq!(controller.tray_click(point), TrayAction::Show);
+        assert_eq!(controller.tray_click(), TrayAction::Show);
         controller.focus_gained();
-        assert_eq!(controller.tray_click(point), TrayAction::Hide);
+        controller.tray_press(WorkArea {
+            x: 590,
+            y: 690,
+            width: 40,
+            height: 40,
+        });
+        assert_eq!(controller.tray_click(), TrayAction::Hide);
         assert!(!controller.focus_lost(Some(point)));
         assert_eq!(controller.state, LifecycleState::Hidden);
-        assert_eq!(controller.tray_click(point), TrayAction::Show);
+        assert_eq!(controller.tray_click(), TrayAction::Show);
     }
 
     #[test]
     fn unrelated_focus_loss_does_not_swallow_a_later_tray_click() {
         let mut controller = Controller::default();
         let focus_loss_point = Point { x: 100, y: 200 };
-        let tray_point = Point { x: 900, y: 1000 };
 
-        assert_eq!(controller.tray_click(tray_point), TrayAction::Show);
+        assert_eq!(controller.tray_click(), TrayAction::Show);
         controller.focus_gained();
         assert!(controller.focus_lost(Some(focus_loss_point)));
-        assert_eq!(controller.tray_click(tray_point), TrayAction::Show);
+        controller.tray_press(WorkArea {
+            x: 880,
+            y: 980,
+            width: 40,
+            height: 40,
+        });
+        assert_eq!(controller.tray_click(), TrayAction::Show);
     }
 
     #[test]
@@ -515,21 +577,20 @@ mod tests {
         let mut controller = Controller::default();
         let point = Point { x: 700, y: 800 };
 
-        assert_eq!(controller.tray_click(point), TrayAction::Show);
+        assert_eq!(controller.tray_click(), TrayAction::Show);
         assert!(controller.focus_lost(Some(point)));
         assert_eq!(controller.state, LifecycleState::Hidden);
-        assert_eq!(controller.tray_click(point), TrayAction::Show);
+        assert_eq!(controller.tray_click(), TrayAction::Show);
     }
 
     #[test]
     fn visible_click_hides_and_repeated_clicks_reuse_one_lifecycle() {
         let mut controller = Controller::default();
-        let point = Point { x: 900, y: 1000 };
 
-        assert_eq!(controller.tray_click(point), TrayAction::Show);
+        assert_eq!(controller.tray_click(), TrayAction::Show);
         controller.focus_gained();
-        assert_eq!(controller.tray_click(point), TrayAction::Hide);
-        assert_eq!(controller.tray_click(point), TrayAction::Show);
+        assert_eq!(controller.tray_click(), TrayAction::Hide);
+        assert_eq!(controller.tray_click(), TrayAction::Show);
         assert_eq!(controller.state, LifecycleState::Visible);
     }
 
