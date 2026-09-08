@@ -34,6 +34,11 @@ export function createUsageRefresh(load: () => Promise<UsageSnapshot>, options: 
         const next = snapshot.providers.find(item => item.id === 'codex')
         if (!next) throw new Error('Codex usage is unavailable.')
 
+        if (!isValid(next) && lastValid) {
+          provider.value = toPanelProvider(lastValid.provider, lastValid.fetchedAt, now(), true)
+          return
+        }
+
         if (isValid(next)) lastValid = { provider: next, fetchedAt: snapshot.fetchedAt }
         provider.value = toPanelProvider(next, snapshot.fetchedAt, now())
       })

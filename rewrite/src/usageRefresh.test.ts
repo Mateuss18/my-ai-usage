@@ -87,6 +87,23 @@ describe('live usage refresh', () => {
     expect(controller.provider.value.quotas).toHaveLength(2)
   })
 
+  it('keeps a valid snapshot as stale when the provider returns an error snapshot', async () => {
+    const load = vi.fn<() => Promise<UsageSnapshot>>()
+      .mockResolvedValueOnce(snapshot)
+      .mockResolvedValueOnce({
+        ...snapshot,
+        fetchedAt: '2026-09-08T12:18:00Z',
+        providers: [{ ...snapshot.providers[0], state: 'error', capturedAt: null, quotas: [], error: { code: 'timeout', message: 'Codex did not respond in time.' } }],
+      })
+    const controller = createUsageRefresh(load, { now: () => new Date('2026-09-08T12:18:00Z') })
+
+    await controller.refresh()
+    await controller.refresh()
+
+    expect(controller.provider.value).toMatchObject({ state: 'stale', statusLabel: 'Last updated 18 minutes ago' })
+    expect(controller.provider.value.quotas).toHaveLength(2)
+  })
+
   it('shows an error when the first refresh rejects', async () => {
     const controller = createUsageRefresh(() => Promise.reject(new Error('bridge offline')))
 
@@ -123,6 +140,18 @@ describe('live usage refresh', () => {
     controller.stop()
     controller.stop()
     expect(document.removeEventListener).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(load).toHaveBeenCalledTimes(3)
+
+    controller.start()
+    await controller.refresh()
+    expect(document.addEventListener).toHaveBeenCalledTimes(2)
+    expect(load).toHaveBeenCalledTimes(4)
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(load).toHaveBeenCalledTimes(5)
+
+    controller.stop()
+    expect(document.removeEventListener).toHaveBeenCalledTimes(2)
     vi.useRealTimers()
   })
 })
