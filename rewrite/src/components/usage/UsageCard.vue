@@ -4,9 +4,10 @@ import ProgressRing from './ProgressRing.vue'
 import { clampPercentage } from './usage'
 import type { UsageQuota } from './usageTypes'
 
-const props = defineProps<{ quota: UsageQuota }>()
+const props = defineProps<{ quota: UsageQuota; idPrefix?: string }>()
 const usedPercentage = computed(() => props.quota.percentage === null ? null : clampPercentage(props.quota.percentage))
 const percentage = computed(() => usedPercentage.value === null ? null : 100 - usedPercentage.value)
+const titleId = computed(() => `${props.idPrefix ?? 'usage'}-${props.quota.id}-title`)
 const progressColor = computed(() => {
   if (usedPercentage.value === null) return props.quota.color
   if (usedPercentage.value <= 30) return '#22c55e'
@@ -16,10 +17,10 @@ const progressColor = computed(() => {
 </script>
 
 <template>
-  <article class="usage-card" :aria-labelledby="`${quota.id}-title`">
+  <article class="usage-card" :aria-labelledby="titleId">
     <ProgressRing :percentage="usedPercentage" :color="progressColor" :glyph="quota.glyph" :label="`${quota.title}: ${usedPercentage === null ? 'unknown' : `${usedPercentage}% used`}`" />
     <strong class="usage-card__percentage">{{ percentage === null ? '—' : `${percentage}%` }}</strong>
-    <h2 :id="`${quota.id}-title`" class="usage-card__title">{{ quota.title }}</h2>
+    <h2 :id="titleId" class="usage-card__title">{{ quota.title }}</h2>
     <p class="usage-card__reset">{{ quota.resetLabel }}</p>
   </article>
 </template>

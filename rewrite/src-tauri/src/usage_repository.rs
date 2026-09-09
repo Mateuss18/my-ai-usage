@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 use std::path::Path;
@@ -22,13 +23,20 @@ impl UsageRepository {
         if snapshot.schema_version != 2 {
             return Self::default();
         }
-        snapshot.accounts.retain(valid_account_snapshot);
-        snapshot.active_account_key = snapshot.active_account_key.filter(|key| {
-            snapshot
-                .accounts
-                .iter()
-                .any(|item| item.account.key == *key)
+        let mut seen_keys = HashSet::new();
+        snapshot.accounts.retain(|item| {
+            valid_account_snapshot(item) && seen_keys.insert(item.account.key.clone())
         });
+        for item in &mut snapshot.accounts {
+            if matches!(
+                item.usage.state,
+                UsageState::Available | UsageState::Partial
+            ) {
+                item.usage.state = UsageState::Stale;
+                item.usage.error = None;
+            }
+        }
+        snapshot.active_account_key = None;
         snapshot.error = snapshot.error.filter(|error| error.is_controlled());
         Self { snapshot }
     }
@@ -143,6 +151,13 @@ impl UsageRepository {
         if !error.is_controlled() {
             return;
         }
+        for item in &mut self.snapshot.accounts {
+            if valid_usage(&item.usage) {
+                item.usage.state = UsageState::Stale;
+                item.usage.error = None;
+            }
+        }
+        self.snapshot.active_account_key = None;
         self.snapshot.fetched_at = Some(fetched_at);
         self.snapshot.error = Some(error);
     }
@@ -297,6 +312,49 @@ mod tests {
         assert!(repository.snapshot().accounts.is_empty());
         assert_eq!(repository.snapshot().schema_version, 2);
         let _ = fs::remove_file(file);
+    }
+
+    #[test]
+    fn persisted_available_accounts_reload_as_stale_without_duplicate_keys() {
+        let file = path("reload");
+        let mut repository = UsageRepository::default();
+        repository.record_success(account("a@example.com"), usage(10.0), "a1".into());
+        repository.save(&file).unwrap();
+
+        let mut json: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&file).unwrap()).unwrap();
+        let accounts = json["accounts"].as_array_mut().unwrap();
+        let duplicate = accounts[0].clone();
+        accounts.push(duplicate);
+        fs::write(&file, serde_json::to_vec(&json).unwrap()).unwrap();
+
+        let loaded = UsageRepository::load(&file);
+        assert_eq!(loaded.snapshot().accounts.len(), 1);
+        assert_eq!(loaded.snapshot().accounts[0].usage.state, UsageState::Stale);
+        assert_eq!(loaded.snapshot().active_account_key, None);
+        let _ = fs::remove_file(file);
+    }
+
+    #[test]
+    fn root_error_marks_cached_accounts_stale_and_clears_active_account() {
+        let mut repository = UsageRepository::default();
+        repository.record_success(account("a@example.com"), usage(10.0), "a1".into());
+        repository.record_root_error(
+            UsageError {
+                code: "unauthenticated".into(),
+                message: "Sign in to Codex to read usage.".into(),
+            },
+            "a2".into(),
+        );
+
+        let saved = &repository.snapshot().accounts[0];
+        assert_eq!(saved.usage.state, UsageState::Stale);
+        assert_eq!(saved.usage.quotas[0].percentage, Some(10.0));
+        assert_eq!(repository.snapshot().active_account_key, None);
+        assert_eq!(
+            repository.snapshot().error.as_ref().unwrap().code,
+            "unauthenticated"
+        );
     }
 
     #[test]
