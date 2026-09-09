@@ -74,6 +74,9 @@ describe('compact usage panel', () => {
     const loginFailed = await renderToString(createSSRApp(UsagePanel, {
       provider: usageFixtures.unavailable, authenticating: false, authenticated: false, loginFailed: true, logoutFailed: false,
     }))
+    const loggingOut = await renderToString(createSSRApp(UsagePanel, {
+      provider: usageFixtures.codex, authenticating: false, authenticated: true, loginFailed: false, logoutFailed: false, logoutting: true,
+    }))
 
     expect(signedOut).toContain('aria-label="Sign in to Codex"')
     expect(signedIn).toContain('aria-label="Switch Codex account"')
@@ -81,5 +84,7 @@ describe('compact usage panel', () => {
     expect(authenticating).toContain('aria-label="Cancel Codex sign-in"')
     expect(authenticating).toContain('Waiting for login in your browser')
     expect(loginFailed).toContain('Login failed. Try again.')
+    expect(loggingOut).toContain('Signing out…')
+    expect(loggingOut.match(/disabled/g) ?? []).toHaveLength(3)
   })
 })

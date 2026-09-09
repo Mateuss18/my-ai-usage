@@ -45,6 +45,7 @@ impl CodexProvider {
                 providers: vec![provider_usage(
                     UsageState::Unauthenticated,
                     None,
+                    None,
                     Vec::new(),
                     Some(ProviderError::Unauthenticated),
                 )],
@@ -55,7 +56,7 @@ impl CodexProvider {
         let result = self.read_usage();
 
         match result {
-            Ok((quotas, partial)) => UsageSnapshot {
+            Ok((account_name, quotas, partial)) => UsageSnapshot {
                 schema_version: 1,
                 providers: vec![provider_usage(
                     if partial {
@@ -64,6 +65,7 @@ impl CodexProvider {
                         UsageState::Available
                     },
                     Some(fetched_at),
+                    account_name,
                     quotas,
                     None,
                 )],
@@ -73,7 +75,13 @@ impl CodexProvider {
                 self.shutdown();
                 UsageSnapshot {
                     schema_version: 1,
-                    providers: vec![provider_usage(error.state(), None, Vec::new(), Some(error))],
+                    providers: vec![provider_usage(
+                        error.state(),
+                        None,
+                        None,
+                        Vec::new(),
+                        Some(error),
+                    )],
                     fetched_at: Some(fetched_at),
                 }
             }
@@ -174,11 +182,12 @@ impl CodexProvider {
         result
     }
 
-    fn read_usage(&mut self) -> Result<(Vec<UsageQuota>, bool), ProviderError> {
+    fn read_usage(&mut self) -> Result<(Option<String>, Vec<UsageQuota>, bool), ProviderError> {
         self.start()?;
-        self.request("account/read", Some(json!({ "refreshToken": false })))?;
+        let account = self.request("account/read", Some(json!({ "refreshToken": false })))?;
         let result = self.request("account/rateLimits/read", None)?;
-        parse_quotas(&result)
+        let (quotas, partial) = parse_quotas(&result)?;
+        Ok((parse_account_name(&account), quotas, partial))
     }
 
     fn start(&mut self) -> Result<(), ProviderError> {
@@ -333,6 +342,7 @@ impl std::fmt::Display for ProviderError {
 fn provider_usage(
     state: UsageState,
     captured_at: Option<String>,
+    account_name: Option<String>,
     quotas: Vec<UsageQuota>,
     error: Option<ProviderError>,
 ) -> ProviderUsage {
@@ -341,6 +351,7 @@ fn provider_usage(
         id: Provider::Codex,
         name: "Codex".into(),
         vendor: "OpenAI".into(),
+        account_name,
         state,
         captured_at,
         quotas,
@@ -367,6 +378,16 @@ fn is_authentication_error(error: &Value) -> bool {
                 || message.contains("unauthorized")
                 || message.contains("not authenticated")
         })
+}
+
+fn parse_account_name(result: &Value) -> Option<String> {
+    result
+        .get("account")
+        .filter(|account| account.get("type").and_then(Value::as_str) == Some("chatgpt"))
+        .and_then(|account| account.get("email"))
+        .and_then(Value::as_str)
+        .filter(|email| !email.is_empty())
+        .map(str::to_owned)
 }
 
 fn normalize_logout_result(result: Result<(), ProviderError>) -> Result<(), ProviderError> {
@@ -621,6 +642,24 @@ mod tests {
             })),
             Err(ProviderError::Protocol)
         ));
+    }
+
+    #[test]
+    fn reads_the_active_chatgpt_account_identity_without_retaining_other_account_data() {
+        assert_eq!(
+            parse_account_name(&json!({
+                "account": { "type": "chatgpt", "email": "owner@example.com", "planType": "plus" },
+                "requiresOpenaiAuth": true
+            })),
+            Some("owner@example.com".into())
+        );
+        assert_eq!(
+            parse_account_name(&json!({
+                "account": { "type": "chatgpt", "email": null, "planType": "plus" },
+                "requiresOpenaiAuth": true
+            })),
+            None
+        );
     }
 
     #[test]

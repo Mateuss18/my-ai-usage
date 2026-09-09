@@ -106,7 +106,7 @@ function toPanelProvider(source: ProviderUsage, fetchedAt: string | null, now: D
   return {
     id: source.id,
     name: source.name,
-    eyebrow: source.vendor,
+    eyebrow: source.accountName ?? source.vendor,
     glyph: '✦',
     state,
     statusLabel: statusLabel(state, timestamp, source.error?.message, now),

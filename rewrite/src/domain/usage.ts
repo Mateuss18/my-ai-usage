@@ -15,6 +15,7 @@ export interface ProviderUsage {
   id: ProviderId
   name: string
   vendor: string
+  accountName?: string | null
   state: UsageState
   capturedAt: string | null
   quotas: UsageQuota[]

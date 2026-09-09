@@ -13,6 +13,7 @@ const { state: loginState, begin, cancel } = createCodexLogin({
   cancel: cancelCodexLogin,
 })
 const logoutFailed = shallowRef(false)
+const logoutting = shallowRef(false)
 const authenticating = computed(() => ['starting', 'waiting', 'cancelling'].includes(loginState.value))
 const authenticated = computed(() => ['available', 'partial', 'stale', 'error'].includes(provider.value.state))
 const loginFailed = computed(() => loginState.value === 'error')
@@ -28,6 +29,7 @@ async function switchAccount(): Promise<void> {
 }
 
 async function logout(): Promise<void> {
+  logoutting.value = true
   stop()
   logoutFailed.value = false
   try {
@@ -35,6 +37,7 @@ async function logout(): Promise<void> {
   } catch {
     logoutFailed.value = true
   } finally {
+    logoutting.value = false
     start()
   }
 }
@@ -54,6 +57,7 @@ onUnmounted(() => {
       :authenticated="authenticated"
       :login-failed="loginFailed"
       :logout-failed="logoutFailed"
+      :logoutting="logoutting"
       @refresh="refresh"
       @switch-account="switchAccount"
       @cancel-login="cancel"

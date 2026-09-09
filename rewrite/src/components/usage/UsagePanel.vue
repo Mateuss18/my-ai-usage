@@ -9,20 +9,22 @@ withDefaults(defineProps<{
   authenticated?: boolean
   loginFailed?: boolean
   logoutFailed?: boolean
-}>(), { authenticating: false, authenticated: false, loginFailed: false, logoutFailed: false })
+  logoutting?: boolean
+}>(), { authenticating: false, authenticated: false, loginFailed: false, logoutFailed: false, logoutting: false })
 const emit = defineEmits<{ refresh: []; switchAccount: []; cancelLogin: []; logout: [] }>()
 </script>
 
 <template>
-  <section class="usage-panel" :aria-busy="provider.state === 'loading' || authenticating">
+  <section class="usage-panel" :aria-busy="provider.state === 'loading' || authenticating || logoutting">
     <ProviderHeader
-      name="Codex Usage"
-      eyebrow=""
+      :name="`${provider.name} Usage`"
+      :eyebrow="provider.eyebrow"
       :glyph="provider.glyph"
       :authenticating="authenticating"
       :authenticated="authenticated"
       :login-failed="loginFailed"
       :logout-failed="logoutFailed"
+      :logoutting="logoutting"
       @refresh="emit('refresh')"
       @switch-account="emit('switchAccount')"
       @cancel-login="emit('cancelLogin')"
@@ -46,7 +48,7 @@ const emit = defineEmits<{ refresh: []; switchAccount: []; cancelLogin: []; logo
     >
       <span class="usage-panel__empty-icon" aria-hidden="true">{{ provider.state === 'error' ? '!' : '—' }}</span>
       <p>{{ provider.statusLabel }}</p>
-      <button v-if="provider.state === 'error'" type="button" @click="emit('refresh')">Try again</button>
+      <button v-if="provider.state === 'error'" type="button" :disabled="logoutting" @click="emit('refresh')">Try again</button>
     </div>
 
     <div v-else class="usage-panel__grid">

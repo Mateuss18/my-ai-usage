@@ -15,7 +15,9 @@ Let the Windows Tauri app sign in, sign out, or switch the active Codex ChatGPT 
 
 `CodexProvider` keeps a pending login ID and buffers app-server notifications that arrive while a request is waiting for its response. `start_login` logs out, starts ChatGPT login, validates the returned HTTPS URL and ID, and retains only the ID. `poll_login` drains notifications without blocking: only a completion with the exact pending ID changes the login; terminal protocol errors clear state and shut down the child. Completion, cancellation, and standalone logout all shut down the child so the next `account/read` starts a fresh app-server for the current account.
 
-The Tauri layer exposes start, poll, cancel, and logout commands. Starting opens the returned URL with `explorer.exe`, which delegates to the registered Windows browser without a shell command. The Vue composable distinguishes starting, browser waiting, cancellation, idle, and recoverable failure. `App.vue` invalidates an in-flight usage refresh before auth changes, resumes it afterward, and immediately reads `account/read` and rate limits through the fresh provider.
+The Tauri layer exposes start, poll, cancel, and logout commands. Starting opens the returned URL with `explorer.exe`, which delegates to the registered Windows browser without a shell command. The Vue composable distinguishes starting, browser waiting, cancellation, idle, and recoverable failure. `App.vue` invalidates an in-flight usage refresh before auth changes, disables account actions during logout, resumes afterward, and immediately reads `account/read` and rate limits through the fresh provider.
+
+The `account/read` response contributes only the active ChatGPT email to the in-memory usage snapshot, so the header can confirm the current account. No credentials, tokens, cookies, URLs, or account history are retained.
 
 ## Component map
 
@@ -26,6 +28,6 @@ The Tauri layer exposes start, poll, cancel, and logout commands. Starting opens
 
 ## Verification
 
-- Rust unit tests prove ChatGPT login response parsing, exact completion matching, logout normalization, and recovery after terminal app-server failure without starting Codex or changing a real account.
-- Vitest proves the frontend polling loop, explicit UI states, and stale in-flight refresh invalidation.
+- Rust unit tests prove ChatGPT login response parsing, active-identity extraction, exact completion matching, logout normalization, and recovery after terminal app-server failure without starting Codex or changing a real account.
+- Vitest proves the frontend polling loop, explicit UI states, disabled logout actions, and stale in-flight refresh invalidation.
 - The full frontend/Rust test suite, lint, build, diff check, and a read-only verification of the generated app-server schema are run before the MR.

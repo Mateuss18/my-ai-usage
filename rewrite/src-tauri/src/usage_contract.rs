@@ -39,6 +39,7 @@ pub struct ProviderUsage {
     pub id: Provider,
     pub name: String,
     pub vendor: String,
+    pub account_name: Option<String>,
     pub state: UsageState,
     pub captured_at: Option<String>,
     pub quotas: Vec<UsageQuota>,

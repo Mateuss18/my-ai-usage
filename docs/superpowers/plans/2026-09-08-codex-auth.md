@@ -4,7 +4,7 @@
 
 **Goal:** Add official Codex login, logout, cancellation, and account-switch refresh to the Windows Tauri app.
 
-**Architecture:** The existing single `CodexProvider` owns the app-server child and pending login ID. Tauri exposes short start/poll/cancel/logout calls while Vue owns the visible polling state and pauses and invalidates the existing usage interval during auth changes.
+**Architecture:** The existing single `CodexProvider` owns the app-server child and pending login ID. Tauri exposes short start/poll/cancel/logout calls while Vue owns the visible polling state, active ChatGPT email, and pauses and invalidates the existing usage interval during auth changes.
 
 **Tech Stack:** Rust, Tauri 2, Vue 3 `<script setup>`, TypeScript, Vitest.
 

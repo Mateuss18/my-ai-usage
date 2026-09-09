@@ -7,7 +7,8 @@ withDefaults(defineProps<{
   authenticated?: boolean
   loginFailed?: boolean
   logoutFailed?: boolean
-}>(), { authenticating: false, authenticated: false, loginFailed: false, logoutFailed: false })
+  logoutting?: boolean
+}>(), { authenticating: false, authenticated: false, loginFailed: false, logoutFailed: false, logoutting: false })
 const emit = defineEmits<{ refresh: []; switchAccount: []; cancelLogin: []; logout: [] }>()
 </script>
 
@@ -21,6 +22,7 @@ const emit = defineEmits<{ refresh: []; switchAccount: []; cancelLogin: []; logo
       </div>
     </div>
     <p v-if="authenticating" class="provider-header__auth-status" role="status">Waiting for login in your browser…</p>
+    <p v-else-if="logoutting" class="provider-header__auth-status" role="status">Signing out…</p>
     <p v-else-if="loginFailed" class="provider-header__auth-status provider-header__auth-status--error" role="alert">Login failed. Try again.</p>
     <p v-else-if="logoutFailed" class="provider-header__auth-status provider-header__auth-status--error" role="alert">Sign out failed. Try again.</p>
     <details class="provider-header__menu">
@@ -36,11 +38,12 @@ const emit = defineEmits<{ refresh: []; switchAccount: []; cancelLogin: []; logo
           <button
             type="button"
             :aria-label="authenticated ? 'Switch Codex account' : 'Sign in to Codex'"
+            :disabled="logoutting"
             @click="emit('switchAccount')"
           >{{ authenticated ? 'Switch account' : 'Sign in' }}</button>
-          <button v-if="authenticated" type="button" aria-label="Sign out of Codex" @click="emit('logout')">Sign out</button>
+          <button v-if="authenticated" type="button" aria-label="Sign out of Codex" :disabled="logoutting" @click="emit('logout')">Sign out</button>
         </template>
-        <button type="button" :disabled="authenticating" @click="emit('refresh')">Refresh usage</button>
+        <button type="button" :disabled="authenticating || logoutting" @click="emit('refresh')">Refresh usage</button>
       </div>
     </details>
   </header>

@@ -11,6 +11,7 @@ const snapshot: UsageSnapshot = {
     id: 'codex',
     name: 'Codex',
     vendor: 'OpenAI',
+    accountName: 'owner@example.com',
     state: 'available',
     capturedAt: '2026-09-08T11:59:00Z',
     error: null,
@@ -41,7 +42,7 @@ describe('live usage refresh', () => {
     await controller.refresh()
 
     expect(controller.provider.value).toMatchObject({
-      id: 'codex', name: 'Codex', eyebrow: 'OpenAI', glyph: '✦', state: 'available', statusLabel: 'Updated just now',
+      id: 'codex', name: 'Codex', eyebrow: 'owner@example.com', glyph: '✦', state: 'available', statusLabel: 'Updated just now',
       quotas: [
         { id: 'session', title: '5 hours / session', percentage: 73, resetLabel: 'Resets in 2 h 18 min · 11:18', color: '#7dd3fc' },
         { id: 'weekly', title: 'Weekly / all models', percentage: 21, resetLabel: 'Resets in 6 d · 14/09 09:00', color: '#c4b5fd' },
