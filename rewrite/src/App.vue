@@ -19,14 +19,13 @@ onUnmounted(stop)
 
 <style scoped>
 :global(*) { box-sizing: border-box; }
-:global(html), :global(body), :global(#app) { min-width: 0; min-height: 100%; margin: 0; }
+:global(html), :global(body), :global(#app) { width: 100%; height: 100%; min-width: 0; min-height: 100%; margin: 0; overflow: hidden; }
 :global(body) {
-  overflow-x: hidden;
-  background: #171717;
+  background: #090909;
   color: #f5f5f5;
   font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 :global(button), :global(summary) { font: inherit; }
-.app-shell { display: grid; min-height: 100vh; place-items: start center; padding: 2px; }
+.app-shell { display: grid; width: 100%; height: 100vh; overflow: hidden; place-items: start center; }
 </style>

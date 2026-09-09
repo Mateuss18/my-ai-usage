@@ -43,8 +43,8 @@ describe('live usage refresh', () => {
     expect(controller.provider.value).toMatchObject({
       id: 'codex', name: 'Codex', eyebrow: 'OpenAI', glyph: '✦', state: 'available', statusLabel: 'Updated just now',
       quotas: [
-        { id: 'session', title: '5 hours / session', percentage: 73, resetLabel: 'Resets in 2 h 18 min', color: '#7dd3fc' },
-        { id: 'weekly', title: 'Weekly / all models', percentage: 21, resetLabel: 'Resets in 6 d', color: '#c4b5fd' },
+        { id: 'session', title: '5 hours / session', percentage: 73, resetLabel: 'Resets in 2 h 18 min · 11:18', color: '#7dd3fc' },
+        { id: 'weekly', title: 'Weekly / all models', percentage: 21, resetLabel: 'Resets in 6 d · 14/09 09:00', color: '#c4b5fd' },
       ],
     })
   })

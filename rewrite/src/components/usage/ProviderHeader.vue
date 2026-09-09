@@ -24,12 +24,12 @@ const emit = defineEmits<{ refresh: [] }>()
 <style scoped>
 .provider-header {
   position: relative; display: flex; align-items: center; justify-content: space-between;
-  min-width: 0; padding: 15px 16px 14px; border-bottom: 1px solid #37373d;
+  min-width: 0; padding: 9px 16px 8px; border-bottom: 1px solid #37373d;
 }
 .provider-header__brand { display: flex; min-width: 0; align-items: center; gap: 11px; }
 .provider-header__mark {
   display: grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center;
-  border: 1px solid #ffffff17; border-radius: 9px; background: #303036; color: #fff; font-size: 1.15rem;
+  border: 1px solid #ffffff17; border-radius: 9px; background: #151515; color: #fff; font-size: 1.15rem;
 }
 .provider-header__copy { min-width: 0; }
 .provider-header__eyebrow, .provider-header__name { margin: 0; overflow-wrap: anywhere; }
@@ -41,13 +41,13 @@ const emit = defineEmits<{ refresh: [] }>()
   border-radius: 8px; color: #bdbdc4; letter-spacing: 0.08em; transition: background 120ms ease, color 120ms ease;
 }
 .provider-header__menu summary::-webkit-details-marker { display: none; }
-.provider-header__menu summary:hover, .provider-header__menu[open] summary { background: #35353b; color: #fff; }
+.provider-header__menu summary:hover, .provider-header__menu[open] summary { background: #1c1c1c; color: #fff; }
 .provider-header__menu summary:focus-visible, .provider-header__menu-popover button:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
 .provider-header__menu-popover {
   position: absolute; z-index: 2; top: 39px; right: 0; width: max-content; padding: 4px;
-  border: 1px solid #47474e; border-radius: 8px; background: #2c2c31; box-shadow: 0 10px 28px #0008;
+  border: 1px solid #303030; border-radius: 8px; background: #121212; box-shadow: 0 10px 28px #0008;
 }
 .provider-header__menu-popover button { padding: 7px 10px; border: 0; border-radius: 5px; background: transparent; color: #f4f4f5; cursor: pointer; font-size: 0.78rem; }
-.provider-header__menu-popover button:hover { background: #3c3c43; }
+.provider-header__menu-popover button:hover { background: #202020; }
 @media (prefers-reduced-motion: reduce) { .provider-header__menu summary { transition: none; } }
 </style>

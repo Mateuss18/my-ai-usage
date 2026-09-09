@@ -16,14 +16,21 @@ describe('compact usage panel', () => {
     expect(html).toContain(`--ring-value:${expected}%`)
   })
 
+  it('renders the Codex icon inside the ring as decorative content', async () => {
+    const html = await renderToString(createSSRApp(ProgressRing, { percentage: 37, color: '#123abc', glyph: '✦', label: 'Session usage' }))
+
+    expect(html).toContain('class="progress-ring__icon"')
+    expect(html).toContain('aria-hidden="true"')
+  })
+
   it.each([
     ['codex', 'Weekly / all models', 'role="progressbar"', 2],
     ['claude', 'Current session across all supported models', 'role="progressbar"', 1],
-    ['opencode', 'Some usage data is unavailable.', 'role="progressbar"', 1],
+    ['opencode', 'Current session', 'role="progressbar"', 1],
     ['loading', 'Updating usage', 'role="status"', 0],
     ['unavailable', 'Usage is unavailable right now.', 'role="status"', 0],
     ['error', 'Could not update usage. Try again.', 'role="alert"', 0],
-    ['stale', 'Last updated 18 minutes ago', 'role="progressbar"', 2],
+    ['stale', 'Weekly / all models', 'role="progressbar"', 2],
   ])('renders the %s fixture and its state', async (fixtureName, expectedText, expectedRole, ringCount) => {
     const html = await renderToString(createSSRApp(UsagePanel, { provider: usageFixtures[fixtureName] }))
 
@@ -40,8 +47,9 @@ describe('compact usage panel', () => {
     const html = await renderToString(createSSRApp(UsagePanel, { provider }))
 
     expect(html).toContain('aria-valuenow="37"')
-    expect(html).toContain('--ring-color:#123abc')
-    expect(html).toContain('>37%</strong>')
+    expect(html).toContain('--ring-color:#eab308')
+    expect(html).toContain('>63%</strong>')
+    expect(html).toContain('37% used')
   })
 
   it('falls back to Codex for an unknown fixture', () => {

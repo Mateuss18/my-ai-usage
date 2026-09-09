@@ -106,7 +106,7 @@ function toPanelProvider(source: ProviderUsage, fetchedAt: string | null, now: D
       id: quota.id,
       title: quota.label,
       percentage: quota.percentage,
-      resetLabel: resetLabel(quota.resetAt, now),
+      resetLabel: resetLabel(quota.resetAt, now, quota.id !== 'session'),
       color: colors[quota.id] ?? '#7dd3fc',
       glyph: '✦',
     })),
@@ -134,14 +134,22 @@ function timeAgo(timestamp: string | null, now: Date): string {
   return `${days} day${days === 1 ? '' : 's'} ago`
 }
 
-function resetLabel(timestamp: string | null, now: Date): string {
+function resetLabel(timestamp: string | null, now: Date, includeDate: boolean): string {
   const time = timestamp ? Date.parse(timestamp) : Number.NaN
   if (Number.isNaN(time)) return 'Reset time unavailable'
   let minutes = Math.max(0, Math.ceil((time - now.getTime()) / 60_000))
-  if (!minutes) return 'Resets now'
+  if (!minutes) return `Resets now · ${resetTimeInBrasilia(time, includeDate)}`
   const days = Math.floor(minutes / 1_440)
   minutes -= days * 1_440
   const hours = Math.floor(minutes / 60)
   minutes -= hours * 60
-  return `Resets in ${[days && `${days} d`, hours && `${hours} h`, minutes && `${minutes} min`].filter(Boolean).join(' ')}`
+  return `Resets in ${[days && `${days} d`, hours && `${hours} h`, minutes && `${minutes} min`].filter(Boolean).join(' ')} · ${resetTimeInBrasilia(time, includeDate)}`
+}
+
+function resetTimeInBrasilia(timestamp: number, includeDate: boolean): string {
+  const parts = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(new Date(timestamp))
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find(part => part.type === type)?.value ?? ''
+  return `${includeDate ? `${value('day')}/${value('month')} ` : ''}${value('hour')}:${value('minute')}`
 }

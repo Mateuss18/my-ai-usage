@@ -14,7 +14,7 @@ const MAIN_WINDOW: &str = "main";
 const TRAY_ID: &str = "main-tray";
 const EXIT_MENU_ID: &str = "exit";
 const PANEL_WIDTH: i32 = 400;
-const PANEL_HEIGHT: i32 = 520;
+const PANEL_HEIGHT: i32 = 228;
 const INSTANCE_ADDRESS: &str = "127.0.0.1:47619";
 
 type SharedController = Arc<Mutex<Controller>>;
@@ -287,13 +287,12 @@ fn handle_tray_click<R: Runtime>(
     position: PhysicalPosition<f64>,
 ) {
     let point = rounded_point(position);
-    match controller.lock().unwrap().tray_click() {
+    let action = controller.lock().unwrap().tray_click();
+    match action {
         TrayAction::Show => {
             if let Some(window) = app.get_webview_window(MAIN_WINDOW) {
-                if set_position_from_anchor(&window, controller, point)
-                    .and_then(|()| show_window(&window))
-                    .is_err()
-                {
+                let _ = set_position_from_anchor(&window, controller, point);
+                if show_window(&window).is_err() {
                     let _ = window.hide();
                 }
             }
