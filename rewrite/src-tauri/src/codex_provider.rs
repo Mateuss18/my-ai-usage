@@ -400,6 +400,42 @@ fn civil_from_days(days: i64) -> Option<(i64, i64, i64)> {
     Some((year + if month <= 2 { 1 } else { 0 }, month, day))
 }
 
+fn parse_account_identity(result: &Value) -> Result<AccountIdentity, ProviderError> {
+    if result.get("requiresOpenaiAuth").and_then(Value::as_bool) == Some(true) {
+        return Err(ProviderError::Unauthenticated);
+    }
+    let account = result
+        .get("account")
+        .and_then(Value::as_object)
+        .ok_or(ProviderError::MissingIdentity)?;
+    let account_type = account
+        .get("type")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let email = account
+        .get("email")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    if account_type != Some("chatgpt") || email.is_none() {
+        return Err(ProviderError::MissingIdentity);
+    }
+    let email = email.unwrap_or_default();
+    Ok(AccountIdentity {
+        key: format!("codex:{}", email.to_ascii_lowercase()),
+        provider: Provider::Codex,
+        email: Some(email.into()),
+        account_type: account_type.map(str::to_owned),
+        plan: account
+            .get("planType")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -481,38 +517,12 @@ mod tests {
                 Err(ProviderError::MissingIdentity)
             ));
         }
+        assert!(matches!(
+            parse_account_identity(&json!({
+                "account": null,
+                "requiresOpenaiAuth": true
+            })),
+            Err(ProviderError::Unauthenticated)
+        ));
     }
-}
-
-fn parse_account_identity(result: &Value) -> Result<AccountIdentity, ProviderError> {
-    let account = result
-        .get("account")
-        .and_then(Value::as_object)
-        .ok_or(ProviderError::MissingIdentity)?;
-    let account_type = account
-        .get("type")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty());
-    let email = account
-        .get("email")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty());
-    if account_type != Some("chatgpt") || email.is_none() {
-        return Err(ProviderError::MissingIdentity);
-    }
-    let email = email.unwrap_or_default();
-    Ok(AccountIdentity {
-        key: format!("codex:{}", email.to_ascii_lowercase()),
-        provider: Provider::Codex,
-        email: Some(email.into()),
-        account_type: account_type.map(str::to_owned),
-        plan: account
-            .get("planType")
-            .and_then(Value::as_str)
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .map(str::to_owned),
-    })
 }

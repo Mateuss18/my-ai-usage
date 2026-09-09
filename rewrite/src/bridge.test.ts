@@ -24,7 +24,7 @@ describe('frontend-to-Tauri bridge', () => {
   })
 
   it('keeps the provider-neutral usage payload typed at the bridge', async () => {
-    const payload = { schemaVersion: 1 as const, providers: [], fetchedAt: null }
+    const payload = { schemaVersion: 2 as const, accounts: [], activeAccountKey: null, fetchedAt: null, error: null }
     vi.mocked(invoke).mockResolvedValue(payload)
     await expect(getUsage()).resolves.toEqual(payload)
     expect(invoke).toHaveBeenCalledWith('get_usage')

@@ -1,4 +1,4 @@
-import type { ProviderUsage } from './usage'
+import type { AccountUsageSnapshot, ProviderUsage } from './usage'
 
 export const codexAvailable: ProviderUsage = {
   schemaVersion: 1, id: 'codex', name: 'Codex', vendor: 'OpenAI', state: 'available', capturedAt: '2026-09-08T12:00:00Z', error: null,
@@ -24,6 +24,12 @@ export const claudeAvailable: ProviderUsage = {
 export const claudeError: ProviderUsage = {
   schemaVersion: 1, id: 'claude', name: 'Claude', vendor: 'Anthropic', state: 'error', capturedAt: null, quotas: [],
   error: { code: 'provider-unavailable', message: 'Could not update usage.' },
+}
+
+export const codexAccount: AccountUsageSnapshot = {
+  account: { key: 'codex:owner@example.com', provider: 'codex', email: 'owner@example.com', accountType: 'personal', plan: 'Pro' },
+  usage: codexAvailable,
+  fetchedAt: '2026-09-08T12:00:00Z',
 }
 
 export const usageFixtures = [codexAvailable, opencodePartial, claudeAvailable, claudeError]

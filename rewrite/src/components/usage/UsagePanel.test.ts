@@ -16,49 +16,61 @@ describe('compact usage panel', () => {
     expect(html).toContain(`--ring-value:${expected}%`)
   })
 
-  it('renders the Codex icon inside the ring as decorative content', async () => {
-    const html = await renderToString(createSSRApp(ProgressRing, { percentage: 37, color: '#123abc', glyph: '✦', label: 'Session usage' }))
+  it('renders every account with email, plan and an accessible Active or Cached label', async () => {
+    const html = await renderToString(createSSRApp(UsagePanel, { accounts: usageFixtures.multi, loading: false, error: null }))
 
-    expect(html).toContain('class="progress-ring__icon"')
-    expect(html).toContain('aria-hidden="true"')
+    expect(html).toContain('owner@example.com')
+    expect(html).toContain('team@example.com')
+    expect(html).toContain('Pro')
+    expect(html).toContain('Active')
+    expect(html).toContain('Cached')
+    expect(html.match(/role="progressbar"/g) ?? []).toHaveLength(4)
   })
 
   it.each([
-    ['codex', 'Weekly / all models', 'role="progressbar"', 2],
-    ['claude', 'Current session across all supported models', 'role="progressbar"', 1],
-    ['opencode', 'Current session', 'role="progressbar"', 1],
-    ['loading', 'Updating usage', 'role="status"', 0],
-    ['unavailable', 'Usage is unavailable right now.', 'role="status"', 0],
-    ['error', 'Could not update usage. Try again.', 'role="alert"', 0],
-    ['stale', 'Weekly / all models', 'role="progressbar"', 2],
-  ])('renders the %s fixture and its state', async (fixtureName, expectedText, expectedRole, ringCount) => {
-    const html = await renderToString(createSSRApp(UsagePanel, { provider: usageFixtures[fixtureName] }))
+    ['partial', 'Updated just now — some usage data is unavailable.', 'role="progressbar"'],
+    ['stale', 'Last updated 18 minutes ago', 'role="progressbar"'],
+    ['unauthenticated', 'Sign in to Codex to read usage.', 'role="status"'],
+    ['not-installed', 'Codex is not installed.', 'role="status"'],
+  ])('renders the %s account state without hiding the account', async (fixtureName, expectedText, expectedRole) => {
+    const html = await renderToString(createSSRApp(UsagePanel, { accounts: usageFixtures[fixtureName], loading: false, error: null }))
 
     expect(html).toContain(expectedText)
     expect(html).toContain(expectedRole)
-    expect(html.match(/role="progressbar"/g) ?? []).toHaveLength(ringCount)
   })
 
-  it('passes quota values and colors through the complete panel', async () => {
-    const provider = {
-      ...usageFixtures.codex,
-      quotas: [{ ...usageFixtures.codex.quotas[0], percentage: 37, color: '#123abc' }],
-    }
-    const html = await renderToString(createSSRApp(UsagePanel, { provider }))
+  it('uses a global loading or error state only when no accounts are available', async () => {
+    const loading = await renderToString(createSSRApp(UsagePanel, { accounts: [], loading: true, error: null }))
+    expect(loading).toContain('role="status"')
+    expect(loading).toContain('Updating usage')
+
+    const error = await renderToString(createSSRApp(UsagePanel, { accounts: [], loading: false, error: { code: 'bridge-error', message: 'Could not update usage. Try again.' } }))
+    expect(error).toContain('role="alert"')
+    expect(error).toContain('Could not update usage. Try again.')
+    expect(error).toContain('Try again')
+  })
+
+  it('keeps loaded accounts visible beside a root error', async () => {
+    const html = await renderToString(createSSRApp(UsagePanel, { accounts: usageFixtures.codex, loading: false, error: { code: 'partial', message: 'One provider failed.' } }))
+
+    expect(html).toContain('owner@example.com')
+    expect(html).toContain('One provider failed.')
+    expect(html).not.toContain('Try again')
+  })
+
+  it('passes quota values and keeps unknown percentage unknown', async () => {
+    const account = usageFixtures.codex[0]
+    const usage = { ...account.usage, quotas: [{ ...account.usage.quotas[0], percentage: 37 }, { ...account.usage.quotas[0], id: 'unknown', percentage: null }] }
+    const html = await renderToString(createSSRApp(UsagePanel, { accounts: [{ ...account, usage }], loading: false, error: null }))
 
     expect(html).toContain('aria-valuenow="37"')
-    expect(html).toContain('--ring-color:#eab308')
     expect(html).toContain('>63%</strong>')
     expect(html).toContain('37% used')
+    expect(html).toContain('>—</strong>')
+    expect(html).not.toContain('aria-valuenow="0"')
   })
 
   it('falls back to Codex for an unknown fixture', () => {
     expect(getUsageFixture('unknown')).toBe(usageFixtures.codex)
-  })
-
-  it('does not turn an unknown percentage into zero', async () => {
-    const html = await renderToString(createSSRApp(UsagePanel, { provider: usageFixtures.opencode }))
-    expect(html).toContain('>—</strong>')
-    expect(html).not.toContain('aria-valuenow="0"')
   })
 })

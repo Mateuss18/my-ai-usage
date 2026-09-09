@@ -56,7 +56,7 @@ Entregar um utilitário confiável e discreto que:
 - Ícone na bandeja para abrir ou restaurar a janela compacta.
 - Codex autenticado por uma modalidade compatível com os serviços Codex.
 - Janela compacta e acesso pela bandeja.
-- Uma conta ativa, a mesma usada pelo Codex local.
+- Uma conta ativa por leitura, a mesma usada pelo Codex local; contas já vistas podem permanecer no cache local como stale.
 - Percentual usado, duração da janela e horário de renovação.
 - Atualização automática moderada e botão para atualizar.
 - Acessibilidade básica: teclado, nomes acessíveis, contraste e informação que não dependa só de cor.

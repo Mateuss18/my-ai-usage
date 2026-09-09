@@ -40,6 +40,14 @@ Há também `account/usage/read` para resumo e buckets diários de tokens. Ele �
 
 Documentação oficial: [Codex App Server](https://developers.openai.com/codex/app-server).
 
+## Issue #35 — snapshots locais por conta Codex
+
+O rewrite Tauri consulta `account/read` antes de ler os limites e usa o e-mail normalizado como chave estável (`codex:<email>`). A identidade é mantida separada do contrato de uso; tipo de conta e plano são exibidos quando fornecidos pelo app-server. O mesmo e-mail em workspaces diferentes pode colidir, limitação conhecida do contrato atual. Sem e-mail, nenhuma chave sintética é criada.
+
+O snapshot fica em `app_data_dir/usage-snapshots.json` e contém somente identidade, quotas, estados e horários. A escrita usa arquivo temporário e substituição; cache ausente, inválido ou de schema desconhecido é ignorado. Nunca persistir tokens, cookies, `auth.json`, credenciais ou payloads completos.
+
+Cada leitura atualiza apenas a conta retornada pelo app-server. As demais permanecem visíveis como cache stale, inclusive após reinício ou falha antes da descoberta da identidade. Uma falha depois de uma leitura válida preserva as quotas anteriores e marca a conta como stale.
+
 ## Por que não ler `auth.json`
 
 Projetos de referência obtêm quota lendo credenciais locais e acessando endpoints do provedor. Isso pode funcionar, mas cria responsabilidades desnecessárias:

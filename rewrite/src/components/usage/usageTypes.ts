@@ -1,4 +1,4 @@
-export type UsageState = 'available' | 'loading' | 'partial' | 'unauthenticated' | 'not-installed' | 'unavailable' | 'error' | 'stale'
+import type { AccountIdentity, UsageError, UsageState } from '../../domain/usage'
 
 export interface UsageQuota {
   id: string
@@ -18,3 +18,11 @@ export interface ProviderUsage {
   statusLabel: string
   quotas: UsageQuota[]
 }
+
+export interface AccountUsage {
+  account: AccountIdentity
+  usage: ProviderUsage
+  accountStatus: 'Active' | 'Cached'
+}
+
+export type { UsageError, UsageState }
