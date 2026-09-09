@@ -21,9 +21,9 @@
 ### Task 1: Provider authentication lifecycle
 
 **Files:**
-- Modify: `rewrite/src-tauri/src/codex_provider.rs`
-- Modify: `rewrite/src-tauri/src/lib.rs`
-- Test: `rewrite/src-tauri/src/codex_provider.rs`
+- Modify: `src-tauri/src/codex_provider.rs`
+- Modify: `src-tauri/src/lib.rs`
+- Test: `src-tauri/src/codex_provider.rs`
 
 **Interfaces:**
 - Produces: `CodexProvider::start_login`, `poll_login`, `cancel_login`, and `logout`; Tauri commands `start_codex_login`, `poll_codex_login`, `cancel_codex_login`, and `logout_codex`.
@@ -68,9 +68,9 @@ Run: `npm.cmd run test:rust`
 ### Task 2: Typed frontend login flow
 
 **Files:**
-- Modify: `rewrite/src/bridge.ts`
-- Create: `rewrite/src/codexLogin.ts`
-- Create: `rewrite/src/codexLogin.test.ts`
+- Modify: `src/bridge.ts`
+- Create: `src/codexLogin.ts`
+- Create: `src/codexLogin.test.ts`
 
 **Interfaces:**
 - Produces: `createCodexLogin(bridge, options)` with `state`, `begin`, and `cancel`.
@@ -107,10 +107,10 @@ Run: `npm.cmd run test:frontend`
 ### Task 3: Usage-panel action wiring
 
 **Files:**
-- Modify: `rewrite/src/components/usage/ProviderHeader.vue`
-- Modify: `rewrite/src/components/usage/UsagePanel.vue`
-- Modify: `rewrite/src/App.vue`
-- Test: `rewrite/src/components/usage/UsagePanel.test.ts`
+- Modify: `src/components/usage/ProviderHeader.vue`
+- Modify: `src/components/usage/UsagePanel.vue`
+- Modify: `src/App.vue`
+- Test: `src/components/usage/UsagePanel.test.ts`
 
 **Interfaces:**
 - Consumes: `createCodexLogin` and the existing `createUsageRefresh` controls.

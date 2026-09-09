@@ -21,9 +21,9 @@
 ### Task 1: Extend the Rust usage contract and add the local repository
 
 **Files:**
-- Modify: `rewrite/src-tauri/src/usage_contract.rs`
-- Create: `rewrite/src-tauri/src/usage_repository.rs`
-- Modify: `rewrite/src-tauri/src/lib.rs` to expose the module
+- Modify: `src-tauri/src/usage_contract.rs`
+- Create: `src-tauri/src/usage_repository.rs`
+- Modify: `src-tauri/src/lib.rs` to expose the module
 - Test: Rust unit tests in the two files
 
 **Interfaces:**
@@ -36,7 +36,7 @@
 - `UsageRepository::save(path: &Path) -> io::Result<()>`
 
 - [ ] Write failing tests for serde camelCase output, A/B upsert without duplicates, stale marking, malformed-file fallback, and a serialized snapshot containing no credential-shaped fields.
-- [ ] Run `cargo test --manifest-path rewrite/src-tauri/Cargo.toml` and confirm the new tests fail because the types and repository do not exist.
+- [ ] Run `cargo test --manifest-path src-tauri/Cargo.toml` and confirm the new tests fail because the types and repository do not exist.
 - [ ] Add the version-2 DTOs with nullable identity fields and controlled root error, preserving nullable quota values.
 - [ ] Implement the repository with a small `Vec<AccountUsageSnapshot>` store, key-based upsert, stale marking, malformed input fallback, parent-directory creation, temporary-file write, and Windows-compatible replacement.
 - [ ] Run the focused Rust tests and confirm they pass.
@@ -44,8 +44,8 @@
 ### Task 2: Parse account identity and merge provider refreshes
 
 **Files:**
-- Modify: `rewrite/src-tauri/src/codex_provider.rs`
-- Test: `rewrite/src-tauri/src/codex_provider.rs`
+- Modify: `src-tauri/src/codex_provider.rs`
+- Test: `src-tauri/src/codex_provider.rs`
 
 **Interfaces:**
 - `parse_account(&Value) -> Result<AccountIdentity, ProviderError>`
@@ -62,7 +62,7 @@
 ### Task 3: Connect persistence to the Tauri command
 
 **Files:**
-- Modify: `rewrite/src-tauri/src/lib.rs`
+- Modify: `src-tauri/src/lib.rs`
 - Test: existing command/provider compile path and Rust suite
 
 **Interfaces:**
@@ -76,10 +76,10 @@
 ### Task 4: Evolve the TypeScript domain and refresh orchestration
 
 **Files:**
-- Modify: `rewrite/src/domain/usage.ts`
-- Modify: `rewrite/src/usageRefresh.ts`
-- Modify: `rewrite/src/bridge.ts` only if the typed command signature requires it
-- Test: `rewrite/src/domain/usage.test.ts`, `rewrite/src/usageRefresh.test.ts`
+- Modify: `src/domain/usage.ts`
+- Modify: `src/usageRefresh.ts`
+- Modify: `src/bridge.ts` only if the typed command signature requires it
+- Test: `src/domain/usage.test.ts`, `src/usageRefresh.test.ts`
 
 **Interfaces:**
 - `AccountIdentity`, `AccountUsageSnapshot`, and version-2 `UsageSnapshot` matching Rust camelCase JSON.
@@ -94,12 +94,12 @@
 ### Task 5: Render multiple accounts accessibly in the compact panel
 
 **Files:**
-- Modify: `rewrite/src/App.vue`
-- Modify: `rewrite/src/components/usage/usageTypes.ts`
-- Modify: `rewrite/src/components/usage/UsagePanel.vue`
-- Modify: `rewrite/src/components/usage/UsagePanel.test.ts`
-- Modify: `rewrite/src/components/usage/UsageCard.vue` only if the shared quota markup needs no other change
-- Modify: `rewrite/src-tauri/tauri.conf.json` and `rewrite/src-tauri/src/lib.rs` only to restore enough fixed panel height for two compact account sections
+- Modify: `src/App.vue`
+- Modify: `src/components/usage/usageTypes.ts`
+- Modify: `src/components/usage/UsagePanel.vue`
+- Modify: `src/components/usage/UsagePanel.test.ts`
+- Modify: `src/components/usage/UsageCard.vue` only if the shared quota markup needs no other change
+- Modify: `src-tauri/tauri.conf.json` and `src-tauri/src/lib.rs` only to restore enough fixed panel height for two compact account sections
 
 **Interfaces:**
 - `UsagePanel` accepts `accounts`, `loading`, `error`, and emits one `refresh` event.
@@ -118,6 +118,6 @@
 - No code changes outside the issue scope
 
 - [ ] Document the app-data cache, identity limitation for missing email/shared workspaces, stale semantics, and explicit non-persistence of credentials.
-- [ ] Run `npm.cmd test`, `npm.cmd run lint`, `npm.cmd run typecheck`, `npm.cmd run build`, `cargo fmt --manifest-path rewrite/src-tauri/Cargo.toml --all -- --check`, and `git diff --check` from the worktree.
+- [ ] Run `npm.cmd test`, `npm.cmd run lint`, `npm.cmd run typecheck`, `npm.cmd run build`, `cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check`, and `git diff --check` from the worktree.
 - [ ] Inspect the final diff and verify the root `main` worktree remains untouched; manually validate only if the user separately authorizes desktop interaction.
 - [ ] Create a focused semantic commit and report any unverified runtime gates instead of inferring them from tests/builds.

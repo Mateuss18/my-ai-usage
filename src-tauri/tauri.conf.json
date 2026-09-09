@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "rewrite",
+  "productName": "My AI Usage",
   "version": "0.1.0",
-  "identifier": "com.myausage.rewrite",
+  "identifier": "com.myausage.myaiusage",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "rewrite",
+        "title": "My AI Usage",
         "width": 400,
         "height": 520,
         "resizable": false,

@@ -22,12 +22,12 @@
 ### Task 1: Implement the live usage refresh controller and wire it into the app
 
 **Files:**
-- Create: `rewrite/src/usageRefresh.ts`
-- Test: `rewrite/src/usageRefresh.test.ts`
-- Modify: `rewrite/src/App.vue`
+- Create: `src/usageRefresh.ts`
+- Test: `src/usageRefresh.test.ts`
+- Modify: `src/App.vue`
 
 **Interfaces:**
-- Consumes: `getUsage(): Promise<UsageSnapshot>` from `rewrite/src/bridge.ts`.
+- Consumes: `getUsage(): Promise<UsageSnapshot>` from `src/bridge.ts`.
 - Produces: `createUsageRefresh(load, options)` with `provider`, `refresh`, `start`, and `stop` for Vue lifecycle wiring.
 
 - [x] **Step 1: Write the failing controller tests**

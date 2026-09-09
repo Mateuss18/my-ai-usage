@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    rewrite_lib::run()
+    my_ai_usage_lib::run()
 }

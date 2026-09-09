@@ -2,7 +2,7 @@
 
 ## Context
 
-The Tauri rewrite currently discards the `account/read` result and exposes one
+The Tauri app currently discards the `account/read` result and exposes one
 Codex provider usage value. Issue #35 requires retaining the last known usage
 for each identifiable Codex account while refreshing only the account returned
 by the current app-server session.
