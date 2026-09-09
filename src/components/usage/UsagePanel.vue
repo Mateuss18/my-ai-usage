@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import ProviderHeader from './ProviderHeader.vue'
 import UsageCard from './UsageCard.vue'
+import appLogo from '../../assets/icone-my-ai-usage.svg'
 import type { AccountUsage } from './usageTypes'
 import type { UsageError } from '../../domain/usage'
 
@@ -22,7 +23,7 @@ const emit = defineEmits<{ refresh: []; switchAccount: []; cancelLogin: []; logo
     <ProviderHeader
       name="AI Usage"
       eyebrow="Codex"
-      glyph="✦"
+      :logo-src="appLogo"
       :authenticating="authenticating"
       :authenticated="authenticated"
       :login-failed="loginFailed"

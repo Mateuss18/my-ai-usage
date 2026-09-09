@@ -2,7 +2,7 @@
 withDefaults(defineProps<{
   name: string
   eyebrow: string
-  glyph: string
+  logoSrc: string
   authenticating?: boolean
   authenticated?: boolean
   loginFailed?: boolean
@@ -15,7 +15,7 @@ const emit = defineEmits<{ refresh: []; switchAccount: []; cancelLogin: []; logo
 <template>
   <header class="provider-header">
     <div class="provider-header__brand">
-      <span class="provider-header__mark" aria-hidden="true">{{ glyph }}</span>
+      <img class="provider-header__mark" :src="logoSrc" alt="" aria-hidden="true" />
       <div class="provider-header__copy">
         <p class="provider-header__eyebrow">{{ eyebrow }}</p>
         <h1 class="provider-header__name">{{ name }}</h1>
@@ -57,7 +57,7 @@ const emit = defineEmits<{ refresh: []; switchAccount: []; cancelLogin: []; logo
 .provider-header__brand { display: flex; min-width: 0; align-items: center; gap: 11px; }
 .provider-header__mark {
   display: grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center;
-  border: 1px solid #ffffff17; border-radius: 9px; background: #151515; color: #fff; font-size: 1.15rem;
+  border: 0; border-radius: 9px; background: #151515; object-fit: cover;
 }
 .provider-header__copy { min-width: 0; }
 .provider-header__eyebrow, .provider-header__name { margin: 0; overflow-wrap: anywhere; }
