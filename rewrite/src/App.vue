@@ -5,7 +5,7 @@ import { getUsage } from './bridge'
 import UsagePanel from './components/usage/UsagePanel.vue'
 import { createUsageRefresh } from './usageRefresh'
 
-const { provider, refresh, start, stop } = createUsageRefresh(getUsage)
+const { accounts, loading, error, refresh, start, stop } = createUsageRefresh(getUsage)
 
 onMounted(start)
 onUnmounted(stop)
@@ -13,7 +13,7 @@ onUnmounted(stop)
 
 <template>
   <main class="app-shell">
-    <UsagePanel :provider="provider" @refresh="refresh" />
+    <UsagePanel :accounts="accounts" :loading="loading" :error="error" @refresh="refresh" />
   </main>
 </template>
 
@@ -27,5 +27,5 @@ onUnmounted(stop)
   -webkit-font-smoothing: antialiased;
 }
 :global(button), :global(summary) { font: inherit; }
-.app-shell { display: grid; width: 100%; height: 100vh; overflow: hidden; place-items: start center; }
+.app-shell { display: grid; width: 100%; height: 100vh; overflow-y: auto; place-items: start center; }
 </style>

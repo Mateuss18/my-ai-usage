@@ -6,8 +6,9 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use serde_json::{json, Value};
 
 use crate::usage_contract::{
-    Provider, ProviderUsage, UsageError, UsageQuota, UsageSnapshot, UsageState,
+    AccountIdentity, Provider, ProviderUsage, UsageError, UsageQuota, UsageSnapshot, UsageState,
 };
+use crate::usage_repository::UsageRepository;
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -20,32 +21,36 @@ pub struct CodexProvider {
 }
 
 impl CodexProvider {
-    pub fn usage(&mut self) -> UsageSnapshot {
+    pub fn usage(&mut self, repository: &mut UsageRepository) -> UsageSnapshot {
         let result = self.read_usage();
         let fetched_at = now_iso8601();
 
         match result {
-            Ok((quotas, partial)) => UsageSnapshot {
-                schema_version: 1,
-                providers: vec![provider_usage(
-                    if partial {
-                        UsageState::Partial
-                    } else {
-                        UsageState::Available
-                    },
-                    Some(fetched_at),
-                    quotas,
-                    None,
-                )],
-                fetched_at: Some(now_iso8601()),
-            },
-            Err(error) => {
+            Ok((account, quotas, partial)) => {
+                repository.record_success(
+                    account,
+                    provider_usage(
+                        if partial {
+                            UsageState::Partial
+                        } else {
+                            UsageState::Available
+                        },
+                        Some(fetched_at.clone()),
+                        quotas,
+                        None,
+                    ),
+                    fetched_at,
+                );
+                repository.snapshot().clone()
+            }
+            Err(read_error) => {
                 self.shutdown();
-                UsageSnapshot {
-                    schema_version: 1,
-                    providers: vec![provider_usage(error.state(), None, Vec::new(), Some(error))],
-                    fetched_at: Some(fetched_at),
+                if let Some(account) = read_error.account {
+                    repository.record_error(account, read_error.error.details(), fetched_at);
+                } else {
+                    repository.record_root_error(read_error.error.details(), fetched_at);
                 }
+                repository.snapshot().clone()
             }
         }
     }
@@ -62,11 +67,18 @@ impl CodexProvider {
         }
     }
 
-    fn read_usage(&mut self) -> Result<(Vec<UsageQuota>, bool), ProviderError> {
-        self.start()?;
-        self.request("account/read", Some(json!({ "refreshToken": false })))?;
-        let result = self.request("account/rateLimits/read", None)?;
-        parse_quotas(&result)
+    fn read_usage(&mut self) -> Result<(AccountIdentity, Vec<UsageQuota>, bool), UsageReadError> {
+        self.start().map_err(UsageReadError::root)?;
+        let account = self
+            .request("account/read", Some(json!({ "refreshToken": false })))
+            .map_err(UsageReadError::root)
+            .and_then(|result| parse_account_identity(&result).map_err(UsageReadError::root))?;
+        let result = self
+            .request("account/rateLimits/read", None)
+            .map_err(|error| UsageReadError::account(account.clone(), error))?;
+        let (quotas, partial) = parse_quotas(&result)
+            .map_err(|error| UsageReadError::account(account.clone(), error))?;
+        Ok((account, quotas, partial))
     }
 
     fn start(&mut self) -> Result<(), ProviderError> {
@@ -175,9 +187,32 @@ enum ProviderError {
     InvalidJson,
     Protocol,
     Partial,
+    MissingIdentity,
+}
+
+struct UsageReadError {
+    account: Option<AccountIdentity>,
+    error: ProviderError,
+}
+
+impl UsageReadError {
+    fn root(error: ProviderError) -> Self {
+        Self {
+            account: None,
+            error,
+        }
+    }
+
+    fn account(account: AccountIdentity, error: ProviderError) -> Self {
+        Self {
+            account: Some(account),
+            error,
+        }
+    }
 }
 
 impl ProviderError {
+    #[allow(dead_code)]
     fn state(self) -> UsageState {
         match self {
             Self::NotInstalled => UsageState::NotInstalled,
@@ -198,6 +233,7 @@ impl ProviderError {
             Self::InvalidJson => ("invalid-json", "Codex returned an invalid response."),
             Self::Protocol => ("protocol-error", "Codex returned an unsupported response."),
             Self::Partial => ("partial-data", "Codex did not return usable quota windows."),
+            Self::MissingIdentity => ("missing-identity", "Codex account identity is unavailable."),
         };
         UsageError {
             code: code.into(),
@@ -364,6 +400,42 @@ fn civil_from_days(days: i64) -> Option<(i64, i64, i64)> {
     Some((year + if month <= 2 { 1 } else { 0 }, month, day))
 }
 
+fn parse_account_identity(result: &Value) -> Result<AccountIdentity, ProviderError> {
+    if result.get("requiresOpenaiAuth").and_then(Value::as_bool) == Some(true) {
+        return Err(ProviderError::Unauthenticated);
+    }
+    let account = result
+        .get("account")
+        .and_then(Value::as_object)
+        .ok_or(ProviderError::MissingIdentity)?;
+    let account_type = account
+        .get("type")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let email = account
+        .get("email")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    if account_type != Some("chatgpt") || email.is_none() {
+        return Err(ProviderError::MissingIdentity);
+    }
+    let email = email.unwrap_or_default();
+    Ok(AccountIdentity {
+        key: format!("codex:{}", email.to_ascii_lowercase()),
+        provider: Provider::Codex,
+        email: Some(email.into()),
+        account_type: account_type.map(str::to_owned),
+        plan: account
+            .get("planType")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -416,6 +488,41 @@ mod tests {
         assert!(matches!(
             ProviderError::NotInstalled.state(),
             UsageState::NotInstalled
+        ));
+    }
+
+    #[test]
+    fn normalizes_chatgpt_account_keys_from_trimmed_lowercase_email() {
+        let identity = parse_account_identity(&json!({
+            "account": { "type": "chatgpt", "email": "  Owner@Example.COM  ", "planType": "plus" }
+        }))
+        .unwrap();
+
+        assert_eq!(identity.key, "codex:owner@example.com");
+        assert_eq!(identity.email.as_deref(), Some("Owner@Example.COM"));
+        assert_eq!(identity.account_type.as_deref(), Some("chatgpt"));
+        assert_eq!(identity.plan.as_deref(), Some("plus"));
+    }
+
+    #[test]
+    fn rejects_missing_email_or_account_type_instead_of_making_a_synthetic_key() {
+        for account in [
+            json!({ "type": "chatgpt" }),
+            json!({ "type": "chatgpt", "email": "   " }),
+            json!({ "email": "owner@example.com" }),
+            json!({ "type": "apiKey", "email": "owner@example.com" }),
+        ] {
+            assert!(matches!(
+                parse_account_identity(&json!({ "account": account })),
+                Err(ProviderError::MissingIdentity)
+            ));
+        }
+        assert!(matches!(
+            parse_account_identity(&json!({
+                "account": null,
+                "requiresOpenaiAuth": true
+            })),
+            Err(ProviderError::Unauthenticated)
         ));
     }
 }
