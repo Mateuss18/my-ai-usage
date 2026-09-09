@@ -24,6 +24,7 @@ export function createUsageRefresh(load: () => Promise<UsageSnapshot>, options: 
   const accountRecords = new Map<string, AccountUsageSnapshot>()
   let activeAccountKey: string | null = null
   let refreshing: Promise<void> | undefined
+  let refreshVersion = 0
   let timer: ReturnType<typeof globalThis.setInterval> | undefined
   let started = false
 
@@ -31,8 +32,10 @@ export function createUsageRefresh(load: () => Promise<UsageSnapshot>, options: 
     if (refreshing) return refreshing
     if (!accountRecords.size) loading.value = true
 
+    const version = ++refreshVersion
     refreshing = load()
       .then(snapshot => {
+        if (version !== refreshVersion) return
         error.value = snapshot.error ?? null
         for (const next of snapshot.accounts) {
           const previous = lastValidByAccount.get(next.account.key)
@@ -51,11 +54,13 @@ export function createUsageRefresh(load: () => Promise<UsageSnapshot>, options: 
         renderAccounts()
       })
       .catch(() => {
+        if (version !== refreshVersion) return
         error.value = { code: 'bridge-error', message: 'Could not update usage. Try again.' }
         for (const [key, previous] of lastValidByAccount) accountRecords.set(key, asStale(previous))
         renderAccounts()
       })
       .finally(() => {
+        if (version !== refreshVersion) return
         loading.value = false
         refreshing = undefined
       })
@@ -102,6 +107,8 @@ export function createUsageRefresh(load: () => Promise<UsageSnapshot>, options: 
     started = false
     clearTimer()
     document?.removeEventListener('visibilitychange', onVisibilityChange)
+    refreshVersion += 1
+    refreshing = undefined
   }
 
   return { accounts, loading, error, refresh, start, stop }

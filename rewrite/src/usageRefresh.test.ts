@@ -141,6 +141,33 @@ describe('live usage refresh', () => {
     expect(controller.accounts.value).toHaveLength(1)
   })
 
+  it('does not apply a refresh started before the lifecycle was stopped', async () => {
+    const first = accountSnapshot(accountA)
+    first.usage.quotas[0]!.percentage = 90
+    const second = accountSnapshot(accountA)
+    second.usage.quotas[0]!.percentage = 10
+    let resolveFirst!: () => void
+    let resolveSecond!: () => void
+    const load = vi.fn()
+      .mockImplementationOnce(() => new Promise<UsageSnapshot>(resolve => { resolveFirst = () => resolve(snapshot([first])) }))
+      .mockImplementationOnce(() => new Promise<UsageSnapshot>(resolve => { resolveSecond = () => resolve(snapshot([second])) }))
+    const controller = createUsageRefresh(load, { document: fakeDocument() as unknown as typeof globalThis.document })
+
+    controller.start()
+    controller.stop()
+    controller.start()
+    resolveSecond()
+    await Promise.resolve()
+    await Promise.resolve()
+    resolveFirst()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(load).toHaveBeenCalledTimes(2)
+    expect(controller.accounts.value[0]?.usage.quotas[0]?.percentage).toBe(10)
+    controller.stop()
+  })
+
   it('refreshes immediately when a hidden document becomes visible and keeps one timer', async () => {
     vi.useFakeTimers()
     const document = fakeDocument(true)

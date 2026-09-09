@@ -4,13 +4,35 @@ import UsageCard from './UsageCard.vue'
 import type { AccountUsage } from './usageTypes'
 import type { UsageError } from '../../domain/usage'
 
-defineProps<{ accounts: AccountUsage[]; loading: boolean; error: UsageError | null }>()
-const emit = defineEmits<{ refresh: [] }>()
+withDefaults(defineProps<{
+  accounts: AccountUsage[]
+  loading: boolean
+  error: UsageError | null
+  authenticating?: boolean
+  authenticated?: boolean
+  loginFailed?: boolean
+  logoutFailed?: boolean
+  logoutting?: boolean
+}>(), { authenticating: false, authenticated: false, loginFailed: false, logoutFailed: false, logoutting: false })
+const emit = defineEmits<{ refresh: []; switchAccount: []; cancelLogin: []; logout: [] }>()
 </script>
 
 <template>
-  <section class="usage-panel" :aria-busy="loading && accounts.length === 0">
-    <ProviderHeader name="AI Usage" eyebrow="Codex" glyph="✦" @refresh="emit('refresh')" />
+  <section class="usage-panel" :aria-busy="(loading && accounts.length === 0) || authenticating || logoutting">
+    <ProviderHeader
+      name="AI Usage"
+      eyebrow="Codex"
+      glyph="✦"
+      :authenticating="authenticating"
+      :authenticated="authenticated"
+      :login-failed="loginFailed"
+      :logout-failed="logoutFailed"
+      :logoutting="logoutting"
+      @refresh="emit('refresh')"
+      @switch-account="emit('switchAccount')"
+      @cancel-login="emit('cancelLogin')"
+      @logout="emit('logout')"
+    />
 
     <div v-if="loading && accounts.length === 0" class="usage-panel__loading" role="status">
       <span class="sr-only">Updating usage…</span>

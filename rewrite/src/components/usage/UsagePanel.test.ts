@@ -73,4 +73,22 @@ describe('compact usage panel', () => {
   it('falls back to Codex for an unknown fixture', () => {
     expect(getUsageFixture('unknown')).toBe(usageFixtures.codex)
   })
+
+  it('renders sign-in, account switching and cancellation actions', async () => {
+    const props = { accounts: usageFixtures.codex, loading: false, error: null }
+    const signedOut = await renderToString(createSSRApp(UsagePanel, { ...props, authenticated: false }))
+    const signedIn = await renderToString(createSSRApp(UsagePanel, { ...props, authenticated: true }))
+    const authenticating = await renderToString(createSSRApp(UsagePanel, { ...props, authenticating: true }))
+    const loginFailed = await renderToString(createSSRApp(UsagePanel, { ...props, loginFailed: true }))
+    const loggingOut = await renderToString(createSSRApp(UsagePanel, { ...props, authenticated: true, logoutting: true }))
+
+    expect(signedOut).toContain('aria-label="Sign in to Codex"')
+    expect(signedIn).toContain('aria-label="Switch Codex account"')
+    expect(signedIn).toContain('aria-label="Sign out of Codex"')
+    expect(authenticating).toContain('aria-label="Cancel Codex sign-in"')
+    expect(authenticating).toContain('Waiting for login in your browser')
+    expect(loginFailed).toContain('Login failed. Try again.')
+    expect(loggingOut).toContain('Signing out…')
+    expect(loggingOut.match(/disabled/g) ?? []).toHaveLength(3)
+  })
 })

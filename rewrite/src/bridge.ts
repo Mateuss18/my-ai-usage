@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import type { CodexLoginResult } from './codexLogin'
 import type { UsageSnapshot } from './domain/usage'
 
 export function invokeGreeting(): Promise<string> {
@@ -7,6 +8,22 @@ export function invokeGreeting(): Promise<string> {
 
 export function getUsage(): Promise<UsageSnapshot> {
   return invoke<UsageSnapshot>('get_usage')
+}
+
+export function startCodexLogin(): Promise<void> {
+  return invoke<void>('start_codex_login')
+}
+
+export function pollCodexLogin(): Promise<CodexLoginResult> {
+  return invoke<CodexLoginResult>('poll_codex_login')
+}
+
+export function cancelCodexLogin(): Promise<void> {
+  return invoke<void>('cancel_codex_login')
+}
+
+export function logoutCodex(): Promise<void> {
+  return invoke<void>('logout_codex')
 }
 
 export function describeBridgeError(error: unknown): string {
