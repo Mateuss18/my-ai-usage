@@ -45,12 +45,32 @@ pub struct ProviderUsage {
     pub error: Option<UsageError>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountIdentity {
+    pub key: String,
+    pub provider: Provider,
+    pub email: Option<String>,
+    pub account_type: Option<String>,
+    pub plan: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountUsageSnapshot {
+    pub account: AccountIdentity,
+    pub usage: ProviderUsage,
+    pub fetched_at: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UsageSnapshot {
     pub schema_version: u8,
-    pub providers: Vec<ProviderUsage>,
+    pub accounts: Vec<AccountUsageSnapshot>,
+    pub active_account_key: Option<String>,
     pub fetched_at: Option<String>,
+    pub error: Option<UsageError>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -59,9 +79,68 @@ pub struct UsageError {
     pub message: String,
 }
 
+impl UsageError {
+    pub(crate) fn is_controlled(&self) -> bool {
+        matches!(
+            (self.code.as_str(), self.message.as_str()),
+            ("not-installed", "Codex is not installed.")
+                | ("unauthenticated", "Sign in to Codex to read usage.")
+                | ("timeout", "Codex did not respond in time.")
+                | (
+                    "end-of-stream",
+                    "Codex app-server stopped before responding."
+                )
+                | ("invalid-json", "Codex returned an invalid response.")
+                | ("protocol-error", "Codex returned an unsupported response.")
+                | ("partial-data", "Codex did not return usable quota windows.")
+                | ("missing-identity", "Codex account identity is unavailable.")
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn usage() -> ProviderUsage {
+        ProviderUsage {
+            schema_version: 1,
+            id: Provider::Codex,
+            name: "Codex".into(),
+            vendor: "OpenAI".into(),
+            state: UsageState::Available,
+            captured_at: Some("2026-09-09T12:00:00Z".into()),
+            quotas: Vec::new(),
+            error: None,
+        }
+    }
+
+    #[test]
+    fn serializes_the_v2_account_contract_without_identity_inside_provider_usage() {
+        let snapshot = UsageSnapshot {
+            schema_version: 2,
+            accounts: vec![AccountUsageSnapshot {
+                account: AccountIdentity {
+                    key: "codex:owner@example.com".into(),
+                    provider: Provider::Codex,
+                    email: Some("owner@example.com".into()),
+                    account_type: Some("chatgpt".into()),
+                    plan: Some("plus".into()),
+                },
+                usage: usage(),
+                fetched_at: Some("2026-09-09T12:00:00Z".into()),
+            }],
+            active_account_key: Some("codex:owner@example.com".into()),
+            fetched_at: Some("2026-09-09T12:00:00Z".into()),
+            error: None,
+        };
+
+        let json = serde_json::to_value(&snapshot).unwrap();
+        assert_eq!(json["schemaVersion"], 2);
+        assert!(json["accounts"][0]["account"]["key"].is_string());
+        assert!(json["accounts"][0]["usage"].get("account").is_none());
+        assert!(json["error"].is_null());
+    }
 
     #[test]
     fn round_trip_preserves_unknown_values_as_null() {
