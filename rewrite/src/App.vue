@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, shallowRef } from 'vue'
 
-import { cancelCodexLogin, getUsage, pollCodexLogin, startCodexLogin } from './bridge'
+import { cancelCodexLogin, getUsage, logoutCodex, pollCodexLogin, startCodexLogin } from './bridge'
 import { createCodexLogin } from './codexLogin'
 import UsagePanel from './components/usage/UsagePanel.vue'
 import { createUsageRefresh } from './usageRefresh'
@@ -12,12 +12,28 @@ const { state: loginState, begin, cancel } = createCodexLogin({
   poll: pollCodexLogin,
   cancel: cancelCodexLogin,
 })
-const authenticating = computed(() => loginState.value === 'authenticating' || loginState.value === 'cancelling')
+const logoutFailed = shallowRef(false)
+const authenticating = computed(() => ['starting', 'waiting', 'cancelling'].includes(loginState.value))
+const authenticated = computed(() => ['available', 'partial', 'stale', 'error'].includes(provider.value.state))
+const loginFailed = computed(() => loginState.value === 'error')
 
 async function switchAccount(): Promise<void> {
   stop()
+  logoutFailed.value = false
   try {
     await begin()
+  } finally {
+    start()
+  }
+}
+
+async function logout(): Promise<void> {
+  stop()
+  logoutFailed.value = false
+  try {
+    await logoutCodex()
+  } catch {
+    logoutFailed.value = true
   } finally {
     start()
   }
@@ -35,9 +51,13 @@ onUnmounted(() => {
     <UsagePanel
       :provider="provider"
       :authenticating="authenticating"
+      :authenticated="authenticated"
+      :login-failed="loginFailed"
+      :logout-failed="logoutFailed"
       @refresh="refresh"
       @switch-account="switchAccount"
       @cancel-login="cancel"
+      @logout="logout"
     />
   </main>
 </template>

@@ -4,7 +4,7 @@
 
 **Goal:** Add official Codex login, logout, cancellation, and account-switch refresh to the Windows Tauri app.
 
-**Architecture:** The existing single `CodexProvider` owns the app-server child and pending login ID. Tauri exposes short start/poll/cancel calls while Vue owns the visible polling state and pauses the existing usage interval.
+**Architecture:** The existing single `CodexProvider` owns the app-server child and pending login ID. Tauri exposes short start/poll/cancel/logout calls while Vue owns the visible polling state and pauses and invalidates the existing usage interval during auth changes.
 
 **Tech Stack:** Rust, Tauri 2, Vue 3 `<script setup>`, TypeScript, Vitest.
 
@@ -26,7 +26,7 @@
 - Test: `rewrite/src-tauri/src/codex_provider.rs`
 
 **Interfaces:**
-- Produces: `CodexProvider::start_login`, `poll_login`, and `cancel_login`; Tauri commands `start_codex_login`, `poll_codex_login`, and `cancel_codex_login`.
+- Produces: `CodexProvider::start_login`, `poll_login`, `cancel_login`, and `logout`; Tauri commands `start_codex_login`, `poll_codex_login`, `cancel_codex_login`, and `logout_codex`.
 - Consumes: the existing app-server request transport and `UsageSnapshot` read path.
 
 - [ ] **Step 1: Write failing provider tests**
@@ -74,7 +74,7 @@ Run: `npm.cmd run test:rust`
 
 **Interfaces:**
 - Produces: `createCodexLogin(bridge, options)` with `state`, `begin`, and `cancel`.
-- Consumes: Tauri commands `start_codex_login`, `poll_codex_login`, and `cancel_codex_login`.
+- Consumes: Tauri commands `start_codex_login`, `poll_codex_login`, and `cancel_codex_login`; state distinguishes starting, browser waiting, cancellation, idle, and error.
 
 - [ ] **Step 1: Write failing composable tests.**
 
@@ -114,7 +114,7 @@ Run: `npm.cmd run test:frontend`
 
 **Interfaces:**
 - Consumes: `createCodexLogin` and the existing `createUsageRefresh` controls.
-- Produces: `switch-account` and `cancel-login` component events.
+- Produces: sign-in/switch, cancel-login, and logout component events with explicit status feedback.
 
 - [ ] **Step 1: Write a failing panel test for forwarding `switch-account`.**
 

@@ -23,14 +23,17 @@ export function createUsageRefresh(load: () => Promise<UsageSnapshot>, options: 
   const intervalMs = options.intervalMs ?? 60_000
   let lastValid: { provider: ProviderUsage; fetchedAt: string | null } | undefined
   let refreshing: Promise<void> | undefined
+  let refreshVersion = 0
   let timer: ReturnType<typeof globalThis.setInterval> | undefined
   let started = false
 
   function refresh(): Promise<void> {
     if (refreshing) return refreshing
 
+    const version = ++refreshVersion
     refreshing = load()
       .then(snapshot => {
+        if (version !== refreshVersion) return
         const next = snapshot.providers.find(item => item.id === 'codex')
         if (!next) throw new Error('Codex usage is unavailable.')
 
@@ -43,11 +46,14 @@ export function createUsageRefresh(load: () => Promise<UsageSnapshot>, options: 
         provider.value = toPanelProvider(next, snapshot.fetchedAt, now())
       })
       .catch(() => {
+        if (version !== refreshVersion) return
         provider.value = lastValid
           ? toPanelProvider(lastValid.provider, lastValid.fetchedAt, now(), true)
           : { ...defaultProvider, state: 'error', statusLabel: 'Could not update usage. Try again.' }
       })
-      .finally(() => { refreshing = undefined })
+      .finally(() => {
+        if (version === refreshVersion) refreshing = undefined
+      })
 
     return refreshing
   }
@@ -83,6 +89,8 @@ export function createUsageRefresh(load: () => Promise<UsageSnapshot>, options: 
     started = false
     clearTimer()
     document?.removeEventListener('visibilitychange', onVisibilityChange)
+    refreshVersion += 1
+    refreshing = undefined
   }
 
   return { provider, refresh, start, stop }

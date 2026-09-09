@@ -383,6 +383,15 @@ fn cancel_codex_login(provider: tauri::State<'_, SharedCodexProvider>) -> Result
         .map_err(|error| error.to_string())
 }
 
+#[tauri::command]
+fn logout_codex(provider: tauri::State<'_, SharedCodexProvider>) -> Result<(), String> {
+    provider
+        .lock()
+        .unwrap()
+        .logout()
+        .map_err(|error| error.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let Some(instance_listener) = claim_instance().expect("failed to claim app instance") else {
@@ -486,7 +495,8 @@ pub fn run() {
             get_usage,
             start_codex_login,
             poll_codex_login,
-            cancel_codex_login
+            cancel_codex_login,
+            logout_codex
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

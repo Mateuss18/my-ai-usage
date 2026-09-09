@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::mpsc::{self, Receiver, TryRecvError};
@@ -17,6 +18,7 @@ pub struct CodexProvider {
     child: Option<Child>,
     input: Option<ChildStdin>,
     responses: Option<Receiver<String>>,
+    notifications: VecDeque<Value>,
     next_request_id: u64,
     pending_login_id: Option<String>,
 }
@@ -82,6 +84,7 @@ impl CodexProvider {
         self.pending_login_id = None;
         self.input = None;
         self.responses = None;
+        self.notifications.clear();
         if let Some(mut child) = self.child.take() {
             let _ = Command::new("taskkill.exe")
                 .args(["/pid", &child.id().to_string(), "/t", "/f"])
@@ -96,13 +99,27 @@ impl CodexProvider {
             return Err(ProviderError::Protocol);
         }
 
-        self.start()?;
-        self.request("account/logout", None)?;
-        let login = parse_login_start(
-            &self.request("account/login/start", Some(json!({ "type": "chatgpt" })))?,
-        )?;
-        self.pending_login_id = Some(login.id);
-        Ok(login.auth_url)
+        let result = (|| {
+            self.start()?;
+            normalize_logout_result(self.request("account/logout", None).map(|_| ()))?;
+            let login = parse_login_start(
+                &self.request("account/login/start", Some(json!({ "type": "chatgpt" })))?,
+            )?;
+            self.pending_login_id = Some(login.id);
+            Ok(login.auth_url)
+        })();
+        if result.is_err() {
+            self.shutdown();
+        }
+        result
+    }
+
+    pub fn logout(&mut self) -> Result<(), ProviderError> {
+        let result = self
+            .start()
+            .and_then(|()| self.request("account/logout", None).map(|_| ()));
+        self.shutdown();
+        normalize_logout_result(result)
     }
 
     pub fn poll_login(&mut self) -> Result<LoginStatus, ProviderError> {
@@ -110,18 +127,36 @@ impl CodexProvider {
             .pending_login_id
             .clone()
             .ok_or(ProviderError::Protocol)?;
-        let responses = self.responses.as_ref().ok_or(ProviderError::Protocol)?;
+        while let Some(message) = self.notifications.pop_front() {
+            if let Some(status) = login_status(&login_id, &message) {
+                self.shutdown();
+                return Ok(status);
+            }
+        }
 
         loop {
-            let line = match responses.try_recv() {
+            let line = match self
+                .responses
+                .as_ref()
+                .ok_or(ProviderError::Protocol)?
+                .try_recv()
+            {
                 Ok(line) => line,
                 Err(TryRecvError::Empty) => return Ok(LoginStatus::Pending),
-                Err(TryRecvError::Disconnected) => return Err(ProviderError::EndOfStream),
+                Err(TryRecvError::Disconnected) => {
+                    self.shutdown();
+                    return Err(ProviderError::EndOfStream);
+                }
             };
-            let message: Value =
-                serde_json::from_str(&line).map_err(|_| ProviderError::InvalidJson)?;
+            let message: Value = match serde_json::from_str(&line) {
+                Ok(message) => message,
+                Err(_) => {
+                    self.shutdown();
+                    return Err(ProviderError::InvalidJson);
+                }
+            };
             if let Some(status) = login_status(&login_id, &message) {
-                self.pending_login_id = None;
+                self.shutdown();
                 return Ok(status);
             }
         }
@@ -132,8 +167,11 @@ impl CodexProvider {
             .pending_login_id
             .take()
             .ok_or(ProviderError::Protocol)?;
-        self.request("account/login/cancel", Some(json!({ "loginId": login_id })))?;
-        Ok(())
+        let result = self
+            .request("account/login/cancel", Some(json!({ "loginId": login_id })))
+            .map(|_| ());
+        self.shutdown();
+        result
     }
 
     fn read_usage(&mut self) -> Result<(Vec<UsageQuota>, bool), ProviderError> {
@@ -178,11 +216,16 @@ impl CodexProvider {
         self.child = Some(child);
         self.input = Some(input);
         self.responses = Some(responses);
-        self.request(
-            "initialize",
-            Some(json!({ "clientInfo": { "name": "my-ai-usage", "version": "0.1.0" } })),
-        )?;
-        self.notify("initialized")
+        let initialized = self
+            .request(
+                "initialize",
+                Some(json!({ "clientInfo": { "name": "my-ai-usage", "version": "0.1.0" } })),
+            )
+            .and_then(|_| self.notify("initialized"));
+        if initialized.is_err() {
+            self.shutdown();
+        }
+        initialized
     }
 
     fn request(&mut self, method: &str, params: Option<Value>) -> Result<Value, ProviderError> {
@@ -207,6 +250,7 @@ impl CodexProvider {
                 serde_json::from_str(&line).map_err(|_| ProviderError::InvalidJson)?;
             let object = response.as_object().ok_or(ProviderError::Protocol)?;
             if object.get("id").and_then(Value::as_u64) != Some(id) {
+                self.notifications.push_back(response);
                 continue;
             }
             if let Some(error) = object.get("error") {
@@ -325,6 +369,13 @@ fn is_authentication_error(error: &Value) -> bool {
         })
 }
 
+fn normalize_logout_result(result: Result<(), ProviderError>) -> Result<(), ProviderError> {
+    match result {
+        Ok(()) | Err(ProviderError::Unauthenticated) => Ok(()),
+        Err(error) => Err(error),
+    }
+}
+
 fn parse_login_start(result: &Value) -> Result<LoginStart, ProviderError> {
     if result.get("type").and_then(Value::as_str) != Some("chatgpt") {
         return Err(ProviderError::Protocol);
@@ -337,7 +388,7 @@ fn parse_login_start(result: &Value) -> Result<LoginStart, ProviderError> {
     let auth_url = result
         .get("authUrl")
         .and_then(Value::as_str)
-        .filter(|url| url.starts_with("https://"))
+        .filter(|url| is_valid_https_url(url))
         .ok_or(ProviderError::Protocol)?;
 
     Ok(LoginStart {
@@ -346,26 +397,31 @@ fn parse_login_start(result: &Value) -> Result<LoginStart, ProviderError> {
     })
 }
 
+fn is_valid_https_url(url: &str) -> bool {
+    url.strip_prefix("https://")
+        .and_then(|url| url.split('/').next())
+        .is_some_and(|host| {
+            !host.is_empty()
+                && !host
+                    .chars()
+                    .any(|character| character.is_whitespace() || character.is_control())
+        })
+}
+
 fn login_status(login_id: &str, message: &Value) -> Option<LoginStatus> {
     if message.get("method").and_then(Value::as_str) != Some("account/login/completed") {
         return None;
     }
     let params = message.get("params")?;
-    if params
-        .get("loginId")
-        .and_then(Value::as_str)
-        .is_some_and(|id| id != login_id)
-    {
+    if params.get("loginId").and_then(Value::as_str) != Some(login_id) {
         return None;
     }
 
-    Some(
-        if params.get("success").and_then(Value::as_bool) == Some(true) {
-            LoginStatus::Completed
-        } else {
-            LoginStatus::Failed
-        },
-    )
+    match params.get("success").and_then(Value::as_bool) {
+        Some(true) => Some(LoginStatus::Completed),
+        Some(false) => Some(LoginStatus::Failed),
+        None => None,
+    }
 }
 
 fn parse_quotas(result: &Value) -> Result<(Vec<UsageQuota>, bool), ProviderError> {
@@ -557,6 +613,14 @@ mod tests {
             parse_login_start(&json!({ "type": "apiKey" })),
             Err(ProviderError::Protocol)
         ));
+        assert!(matches!(
+            parse_login_start(&json!({
+                "type": "chatgpt",
+                "loginId": "new-account",
+                "authUrl": "https://"
+            })),
+            Err(ProviderError::Protocol)
+        ));
     }
 
     #[test]
@@ -576,8 +640,54 @@ mod tests {
         );
         assert_eq!(login_status("other-account", &completed), None);
         assert_eq!(
+            login_status(
+                "new-account",
+                &json!({
+                    "method": "account/login/completed",
+                    "params": { "success": true }
+                }),
+            ),
+            None
+        );
+        assert_eq!(
             login_status("new-account", &failed),
             Some(LoginStatus::Failed)
         );
+    }
+
+    #[test]
+    fn treats_an_already_signed_out_codex_session_as_a_successful_logout() {
+        assert!(normalize_logout_result(Err(ProviderError::Unauthenticated)).is_ok());
+        assert!(matches!(
+            normalize_logout_result(Err(ProviderError::Timeout)),
+            Err(ProviderError::Timeout)
+        ));
+    }
+
+    #[test]
+    fn makes_login_recoverable_after_the_app_server_stops_or_returns_invalid_json() {
+        let (sender, responses) = mpsc::channel();
+        drop(sender);
+        let mut provider = CodexProvider::default();
+        provider.responses = Some(responses);
+        provider.pending_login_id = Some("new-account".into());
+
+        assert!(matches!(
+            provider.poll_login(),
+            Err(ProviderError::EndOfStream)
+        ));
+        assert_eq!(provider.pending_login_id, None);
+
+        let (sender, responses) = mpsc::channel();
+        sender.send("not-json".into()).unwrap();
+        let mut provider = CodexProvider::default();
+        provider.responses = Some(responses);
+        provider.pending_login_id = Some("new-account".into());
+
+        assert!(matches!(
+            provider.poll_login(),
+            Err(ProviderError::InvalidJson)
+        ));
+        assert_eq!(provider.pending_login_id, None);
     }
 }

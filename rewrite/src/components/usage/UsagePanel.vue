@@ -3,8 +3,14 @@ import ProviderHeader from './ProviderHeader.vue'
 import UsageCard from './UsageCard.vue'
 import type { ProviderUsage } from './usageTypes'
 
-defineProps<{ provider: ProviderUsage; authenticating: boolean }>()
-const emit = defineEmits<{ refresh: []; switchAccount: []; cancelLogin: [] }>()
+withDefaults(defineProps<{
+  provider: ProviderUsage
+  authenticating?: boolean
+  authenticated?: boolean
+  loginFailed?: boolean
+  logoutFailed?: boolean
+}>(), { authenticating: false, authenticated: false, loginFailed: false, logoutFailed: false })
+const emit = defineEmits<{ refresh: []; switchAccount: []; cancelLogin: []; logout: [] }>()
 </script>
 
 <template>
@@ -14,9 +20,13 @@ const emit = defineEmits<{ refresh: []; switchAccount: []; cancelLogin: [] }>()
       eyebrow=""
       :glyph="provider.glyph"
       :authenticating="authenticating"
+      :authenticated="authenticated"
+      :login-failed="loginFailed"
+      :logout-failed="logoutFailed"
       @refresh="emit('refresh')"
       @switch-account="emit('switchAccount')"
       @cancel-login="emit('cancelLogin')"
+      @logout="emit('logout')"
     />
 
     <div v-if="provider.state === 'loading'" class="usage-panel__loading" role="status">

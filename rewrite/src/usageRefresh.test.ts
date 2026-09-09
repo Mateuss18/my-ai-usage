@@ -63,6 +63,31 @@ describe('live usage refresh', () => {
     expect(controller.provider.value.state).toBe('available')
   })
 
+  it('does not apply a refresh started before the lifecycle was stopped', async () => {
+    const firstSnapshot = { ...snapshot, providers: [{ ...snapshot.providers[0], quotas: [{ ...snapshot.providers[0].quotas[0], percentage: 90 }] }] }
+    const secondSnapshot = { ...snapshot, providers: [{ ...snapshot.providers[0], quotas: [{ ...snapshot.providers[0].quotas[0], percentage: 10 }] }] }
+    let resolveFirst!: () => void
+    let resolveSecond!: () => void
+    const load = vi.fn()
+      .mockImplementationOnce(() => new Promise<UsageSnapshot>(resolve => { resolveFirst = () => resolve(firstSnapshot) }))
+      .mockImplementationOnce(() => new Promise<UsageSnapshot>(resolve => { resolveSecond = () => resolve(secondSnapshot) }))
+    const controller = createUsageRefresh(load, { document: fakeDocument() as unknown as typeof globalThis.document })
+
+    controller.start()
+    controller.stop()
+    controller.start()
+    resolveSecond()
+    await Promise.resolve()
+    await Promise.resolve()
+    resolveFirst()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(load).toHaveBeenCalledTimes(2)
+    expect(controller.provider.value.quotas[0]?.percentage).toBe(10)
+    controller.stop()
+  })
+
   it('derives partial status from the snapshot timestamp', async () => {
     const controller = createUsageRefresh(
       () => Promise.resolve({ ...snapshot, providers: [{ ...snapshot.providers[0], state: 'partial' }] }),

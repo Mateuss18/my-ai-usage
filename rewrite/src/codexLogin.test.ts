@@ -43,4 +43,24 @@ describe('Codex account switching', () => {
     expect(bridge.cancel).toHaveBeenCalledOnce()
     expect(bridge.poll).toHaveBeenCalledOnce()
   })
+
+  it('shows browser waiting only after native login has opened the URL', async () => {
+    let start!: () => void
+    let complete!: () => void
+    const login = createCodexLogin({
+      start: () => new Promise<void>(resolve => { start = resolve }),
+      poll: () => new Promise<'completed'>(resolve => { complete = () => resolve('completed') }),
+      cancel: async () => {},
+    })
+
+    const attempt = login.begin()
+    expect(login.state.value).toBe('starting')
+
+    start()
+    await Promise.resolve()
+    expect(login.state.value).toBe('waiting')
+
+    complete()
+    await expect(attempt).resolves.toBe(true)
+  })
 })

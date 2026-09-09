@@ -1,7 +1,7 @@
 import { shallowRef } from 'vue'
 
 export type CodexLoginResult = 'pending' | 'completed' | 'failed'
-export type CodexLoginState = 'idle' | 'authenticating' | 'cancelling' | 'error'
+export type CodexLoginState = 'idle' | 'starting' | 'waiting' | 'cancelling' | 'error'
 
 export interface CodexLoginBridge {
   start: () => Promise<void>
@@ -24,11 +24,12 @@ export function createCodexLogin(bridge: CodexLoginBridge, options: CodexLoginOp
   function begin(): Promise<boolean> {
     if (activeLogin) return activeLogin
 
-    state.value = 'authenticating'
+    state.value = 'starting'
     const login = (async () => {
       try {
         await bridge.start()
-        while (state.value === 'authenticating') {
+        if (state.value === 'starting') state.value = 'waiting'
+        while (state.value === 'waiting') {
           const result = await bridge.poll()
           if (result === 'completed') {
             state.value = 'idle'
@@ -53,7 +54,7 @@ export function createCodexLogin(bridge: CodexLoginBridge, options: CodexLoginOp
   }
 
   async function cancel(): Promise<void> {
-    if (state.value !== 'authenticating') return
+    if (state.value !== 'starting' && state.value !== 'waiting') return
     state.value = 'cancelling'
     cancellation = bridge.cancel()
     try {

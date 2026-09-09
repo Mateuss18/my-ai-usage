@@ -22,6 +22,10 @@ export function cancelCodexLogin(): Promise<void> {
   return invoke<void>('cancel_codex_login')
 }
 
+export function logoutCodex(): Promise<void> {
+  return invoke<void>('logout_codex')
+}
+
 export function describeBridgeError(error: unknown): string {
   if (error instanceof Error && error.message) {
     return error.message

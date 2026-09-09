@@ -62,11 +62,24 @@ describe('compact usage panel', () => {
     expect(html).not.toContain('aria-valuenow="0"')
   })
   it('renders the switch action or cancellation action for Codex sign-in', async () => {
-    const ready = await renderToString(createSSRApp(UsagePanel, { provider: usageFixtures.codex, authenticating: false }))
-    const authenticating = await renderToString(createSSRApp(UsagePanel, { provider: usageFixtures.codex, authenticating: true }))
+    const signedOut = await renderToString(createSSRApp(UsagePanel, {
+      provider: usageFixtures.unavailable, authenticating: false, authenticated: false, loginFailed: false, logoutFailed: false,
+    }))
+    const signedIn = await renderToString(createSSRApp(UsagePanel, {
+      provider: usageFixtures.codex, authenticating: false, authenticated: true, loginFailed: false, logoutFailed: false,
+    }))
+    const authenticating = await renderToString(createSSRApp(UsagePanel, {
+      provider: usageFixtures.codex, authenticating: true, authenticated: true, loginFailed: false, logoutFailed: false,
+    }))
+    const loginFailed = await renderToString(createSSRApp(UsagePanel, {
+      provider: usageFixtures.unavailable, authenticating: false, authenticated: false, loginFailed: true, logoutFailed: false,
+    }))
 
-    expect(ready).toContain('aria-label="Switch Codex account"')
+    expect(signedOut).toContain('aria-label="Sign in to Codex"')
+    expect(signedIn).toContain('aria-label="Switch Codex account"')
+    expect(signedIn).toContain('aria-label="Sign out of Codex"')
     expect(authenticating).toContain('aria-label="Cancel Codex sign-in"')
-    expect(authenticating).toContain('Signing in')
+    expect(authenticating).toContain('Waiting for login in your browser')
+    expect(loginFailed).toContain('Login failed. Try again.')
   })
 })
