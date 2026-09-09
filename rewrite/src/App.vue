@@ -37,8 +37,9 @@ async function logout(): Promise<void> {
   } catch {
     logoutFailed.value = true
   } finally {
-    logoutting.value = false
     start()
+    await refresh()
+    logoutting.value = false
   }
 }
 
