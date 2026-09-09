@@ -1,8 +1,9 @@
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, ChildStdin, Command, Stdio};
-use std::sync::mpsc::{self, Receiver};
+use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use serde::Serialize;
 use serde_json::{json, Value};
 
 use crate::usage_contract::{
@@ -17,12 +18,39 @@ pub struct CodexProvider {
     input: Option<ChildStdin>,
     responses: Option<Receiver<String>>,
     next_request_id: u64,
+    pending_login_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LoginStatus {
+    Pending,
+    Completed,
+    Failed,
+}
+
+struct LoginStart {
+    id: String,
+    auth_url: String,
 }
 
 impl CodexProvider {
     pub fn usage(&mut self) -> UsageSnapshot {
-        let result = self.read_usage();
         let fetched_at = now_iso8601();
+        if self.pending_login_id.is_some() {
+            return UsageSnapshot {
+                schema_version: 1,
+                providers: vec![provider_usage(
+                    UsageState::Unauthenticated,
+                    None,
+                    Vec::new(),
+                    Some(ProviderError::Unauthenticated),
+                )],
+                fetched_at: Some(fetched_at),
+            };
+        }
+
+        let result = self.read_usage();
 
         match result {
             Ok((quotas, partial)) => UsageSnapshot {
@@ -51,6 +79,7 @@ impl CodexProvider {
     }
 
     pub fn shutdown(&mut self) {
+        self.pending_login_id = None;
         self.input = None;
         self.responses = None;
         if let Some(mut child) = self.child.take() {
@@ -60,6 +89,51 @@ impl CodexProvider {
             let _ = child.kill();
             let _ = child.wait();
         }
+    }
+
+    pub fn start_login(&mut self) -> Result<String, ProviderError> {
+        if self.pending_login_id.is_some() {
+            return Err(ProviderError::Protocol);
+        }
+
+        self.start()?;
+        self.request("account/logout", None)?;
+        let login = parse_login_start(
+            &self.request("account/login/start", Some(json!({ "type": "chatgpt" })))?,
+        )?;
+        self.pending_login_id = Some(login.id);
+        Ok(login.auth_url)
+    }
+
+    pub fn poll_login(&mut self) -> Result<LoginStatus, ProviderError> {
+        let login_id = self
+            .pending_login_id
+            .clone()
+            .ok_or(ProviderError::Protocol)?;
+        let responses = self.responses.as_ref().ok_or(ProviderError::Protocol)?;
+
+        loop {
+            let line = match responses.try_recv() {
+                Ok(line) => line,
+                Err(TryRecvError::Empty) => return Ok(LoginStatus::Pending),
+                Err(TryRecvError::Disconnected) => return Err(ProviderError::EndOfStream),
+            };
+            let message: Value =
+                serde_json::from_str(&line).map_err(|_| ProviderError::InvalidJson)?;
+            if let Some(status) = login_status(&login_id, &message) {
+                self.pending_login_id = None;
+                return Ok(status);
+            }
+        }
+    }
+
+    pub fn cancel_login(&mut self) -> Result<(), ProviderError> {
+        let login_id = self
+            .pending_login_id
+            .take()
+            .ok_or(ProviderError::Protocol)?;
+        self.request("account/login/cancel", Some(json!({ "loginId": login_id })))?;
+        Ok(())
     }
 
     fn read_usage(&mut self) -> Result<(Vec<UsageQuota>, bool), ProviderError> {
@@ -167,7 +241,7 @@ impl Drop for CodexProvider {
 }
 
 #[derive(Debug, Clone, Copy)]
-enum ProviderError {
+pub enum ProviderError {
     NotInstalled,
     Unauthenticated,
     Timeout,
@@ -203,6 +277,12 @@ impl ProviderError {
             code: code.into(),
             message: message.into(),
         }
+    }
+}
+
+impl std::fmt::Display for ProviderError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.details().message)
     }
 }
 
@@ -243,6 +323,49 @@ fn is_authentication_error(error: &Value) -> bool {
                 || message.contains("unauthorized")
                 || message.contains("not authenticated")
         })
+}
+
+fn parse_login_start(result: &Value) -> Result<LoginStart, ProviderError> {
+    if result.get("type").and_then(Value::as_str) != Some("chatgpt") {
+        return Err(ProviderError::Protocol);
+    }
+    let id = result
+        .get("loginId")
+        .and_then(Value::as_str)
+        .filter(|id| !id.is_empty())
+        .ok_or(ProviderError::Protocol)?;
+    let auth_url = result
+        .get("authUrl")
+        .and_then(Value::as_str)
+        .filter(|url| url.starts_with("https://"))
+        .ok_or(ProviderError::Protocol)?;
+
+    Ok(LoginStart {
+        id: id.into(),
+        auth_url: auth_url.into(),
+    })
+}
+
+fn login_status(login_id: &str, message: &Value) -> Option<LoginStatus> {
+    if message.get("method").and_then(Value::as_str) != Some("account/login/completed") {
+        return None;
+    }
+    let params = message.get("params")?;
+    if params
+        .get("loginId")
+        .and_then(Value::as_str)
+        .is_some_and(|id| id != login_id)
+    {
+        return None;
+    }
+
+    Some(
+        if params.get("success").and_then(Value::as_bool) == Some(true) {
+            LoginStatus::Completed
+        } else {
+            LoginStatus::Failed
+        },
+    )
 }
 
 fn parse_quotas(result: &Value) -> Result<(Vec<UsageQuota>, bool), ProviderError> {
@@ -417,5 +540,44 @@ mod tests {
             ProviderError::NotInstalled.state(),
             UsageState::NotInstalled
         ));
+    }
+
+    #[test]
+    fn parses_the_official_chatgpt_login_response() {
+        let login = parse_login_start(&json!({
+            "type": "chatgpt",
+            "loginId": "new-account",
+            "authUrl": "https://auth.openai.com/authorize"
+        }))
+        .unwrap();
+
+        assert_eq!(login.id, "new-account");
+        assert_eq!(login.auth_url, "https://auth.openai.com/authorize");
+        assert!(matches!(
+            parse_login_start(&json!({ "type": "apiKey" })),
+            Err(ProviderError::Protocol)
+        ));
+    }
+
+    #[test]
+    fn only_matching_login_completion_changes_the_pending_login() {
+        let completed = json!({
+            "method": "account/login/completed",
+            "params": { "loginId": "new-account", "success": true }
+        });
+        let failed = json!({
+            "method": "account/login/completed",
+            "params": { "loginId": "new-account", "success": false, "error": "Cancelled" }
+        });
+
+        assert_eq!(
+            login_status("new-account", &completed),
+            Some(LoginStatus::Completed)
+        );
+        assert_eq!(login_status("other-account", &completed), None);
+        assert_eq!(
+            login_status("new-account", &failed),
+            Some(LoginStatus::Failed)
+        );
     }
 }

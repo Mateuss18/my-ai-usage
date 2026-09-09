@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { invoke } from '@tauri-apps/api/core'
 
-import { describeBridgeError, getUsage, invokeGreeting } from './bridge'
+import { cancelCodexLogin, describeBridgeError, getUsage, invokeGreeting, pollCodexLogin, startCodexLogin } from './bridge'
 
 // Mocked bridge check; A2 still requires the real Tauri invocation.
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
@@ -28,5 +28,20 @@ describe('frontend-to-Tauri bridge', () => {
     vi.mocked(invoke).mockResolvedValue(payload)
     await expect(getUsage()).resolves.toEqual(payload)
     expect(invoke).toHaveBeenCalledWith('get_usage')
+  })
+
+  it('uses dedicated native commands for the Codex account flow', async () => {
+    vi.mocked(invoke)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce('completed')
+      .mockResolvedValueOnce(undefined)
+
+    await expect(startCodexLogin()).resolves.toBeUndefined()
+    await expect(pollCodexLogin()).resolves.toBe('completed')
+    await expect(cancelCodexLogin()).resolves.toBeUndefined()
+
+    expect(invoke).toHaveBeenNthCalledWith(1, 'start_codex_login')
+    expect(invoke).toHaveBeenNthCalledWith(2, 'poll_codex_login')
+    expect(invoke).toHaveBeenNthCalledWith(3, 'cancel_codex_login')
   })
 })

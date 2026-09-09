@@ -61,4 +61,12 @@ describe('compact usage panel', () => {
     expect(html).toContain('>—</strong>')
     expect(html).not.toContain('aria-valuenow="0"')
   })
+  it('renders the switch action or cancellation action for Codex sign-in', async () => {
+    const ready = await renderToString(createSSRApp(UsagePanel, { provider: usageFixtures.codex, authenticating: false }))
+    const authenticating = await renderToString(createSSRApp(UsagePanel, { provider: usageFixtures.codex, authenticating: true }))
+
+    expect(ready).toContain('aria-label="Switch Codex account"')
+    expect(authenticating).toContain('aria-label="Cancel Codex sign-in"')
+    expect(authenticating).toContain('Signing in')
+  })
 })

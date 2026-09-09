@@ -1,19 +1,44 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted } from 'vue'
 
-import { getUsage } from './bridge'
+import { cancelCodexLogin, getUsage, pollCodexLogin, startCodexLogin } from './bridge'
+import { createCodexLogin } from './codexLogin'
 import UsagePanel from './components/usage/UsagePanel.vue'
 import { createUsageRefresh } from './usageRefresh'
 
 const { provider, refresh, start, stop } = createUsageRefresh(getUsage)
+const { state: loginState, begin, cancel } = createCodexLogin({
+  start: startCodexLogin,
+  poll: pollCodexLogin,
+  cancel: cancelCodexLogin,
+})
+const authenticating = computed(() => loginState.value === 'authenticating' || loginState.value === 'cancelling')
+
+async function switchAccount(): Promise<void> {
+  stop()
+  try {
+    await begin()
+  } finally {
+    start()
+  }
+}
 
 onMounted(start)
-onUnmounted(stop)
+onUnmounted(() => {
+  stop()
+  void cancel()
+})
 </script>
 
 <template>
   <main class="app-shell">
-    <UsagePanel :provider="provider" @refresh="refresh" />
+    <UsagePanel
+      :provider="provider"
+      :authenticating="authenticating"
+      @refresh="refresh"
+      @switch-account="switchAccount"
+      @cancel-login="cancel"
+    />
   </main>
 </template>
 

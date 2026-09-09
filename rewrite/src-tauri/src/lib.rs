@@ -1,5 +1,6 @@
 use std::io::Write;
 use std::net::{TcpListener, TcpStream};
+use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -340,6 +341,48 @@ fn get_usage(provider: tauri::State<'_, SharedCodexProvider>) -> usage_contract:
     provider.lock().unwrap().usage()
 }
 
+fn open_auth_url(auth_url: &str) -> Result<(), String> {
+    Command::new("explorer.exe")
+        .arg(auth_url)
+        .spawn()
+        .map(|_| ())
+        .map_err(|_| "Could not open the browser for Codex sign-in.".into())
+}
+
+#[tauri::command]
+fn start_codex_login(provider: tauri::State<'_, SharedCodexProvider>) -> Result<(), String> {
+    let auth_url = provider
+        .lock()
+        .unwrap()
+        .start_login()
+        .map_err(|error| error.to_string())?;
+    if let Err(error) = open_auth_url(&auth_url) {
+        let _ = provider.lock().unwrap().cancel_login();
+        return Err(error);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn poll_codex_login(
+    provider: tauri::State<'_, SharedCodexProvider>,
+) -> Result<codex_provider::LoginStatus, String> {
+    provider
+        .lock()
+        .unwrap()
+        .poll_login()
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn cancel_codex_login(provider: tauri::State<'_, SharedCodexProvider>) -> Result<(), String> {
+    provider
+        .lock()
+        .unwrap()
+        .cancel_login()
+        .map_err(|error| error.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let Some(instance_listener) = claim_instance().expect("failed to claim app instance") else {
@@ -439,7 +482,12 @@ pub fn run() {
                 Ok(())
             }
         })
-        .invoke_handler(tauri::generate_handler![get_usage])
+        .invoke_handler(tauri::generate_handler![
+            get_usage,
+            start_codex_login,
+            poll_codex_login,
+            cancel_codex_login
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

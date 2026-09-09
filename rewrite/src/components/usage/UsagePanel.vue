@@ -3,13 +3,21 @@ import ProviderHeader from './ProviderHeader.vue'
 import UsageCard from './UsageCard.vue'
 import type { ProviderUsage } from './usageTypes'
 
-defineProps<{ provider: ProviderUsage }>()
-const emit = defineEmits<{ refresh: [] }>()
+defineProps<{ provider: ProviderUsage; authenticating: boolean }>()
+const emit = defineEmits<{ refresh: []; switchAccount: []; cancelLogin: [] }>()
 </script>
 
 <template>
-  <section class="usage-panel" :aria-busy="provider.state === 'loading'">
-    <ProviderHeader name="Codex Usage" eyebrow="" :glyph="provider.glyph" @refresh="emit('refresh')" />
+  <section class="usage-panel" :aria-busy="provider.state === 'loading' || authenticating">
+    <ProviderHeader
+      name="Codex Usage"
+      eyebrow=""
+      :glyph="provider.glyph"
+      :authenticating="authenticating"
+      @refresh="emit('refresh')"
+      @switch-account="emit('switchAccount')"
+      @cancel-login="emit('cancelLogin')"
+    />
 
     <div v-if="provider.state === 'loading'" class="usage-panel__loading" role="status">
       <span class="sr-only">{{ provider.statusLabel }}</span>
