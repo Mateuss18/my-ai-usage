@@ -15,17 +15,37 @@ export interface ProviderUsage {
   id: ProviderId
   name: string
   vendor: string
-  accountName?: string | null
   state: UsageState
   capturedAt: string | null
   quotas: UsageQuota[]
   error: { code: string; message: string } | null
 }
 
-export interface UsageSnapshot {
-  schemaVersion: 1
-  providers: ProviderUsage[]
+export interface UsageError {
+  code: string
+  message: string
+}
+
+export interface AccountIdentity {
+  key: string
+  provider: ProviderId
+  email: string
+  accountType: string
+  plan: string | null
+}
+
+export interface AccountUsageSnapshot {
+  account: AccountIdentity
+  usage: ProviderUsage
   fetchedAt: string | null
+}
+
+export interface UsageSnapshot {
+  schemaVersion: 2
+  accounts: AccountUsageSnapshot[]
+  activeAccountKey: string | null
+  fetchedAt: string | null
+  error?: UsageError | null
 }
 
 const providerOrder: ProviderId[] = ['codex', 'opencode', 'claude']

@@ -6,7 +6,7 @@ import { createCodexLogin } from './codexLogin'
 import UsagePanel from './components/usage/UsagePanel.vue'
 import { createUsageRefresh } from './usageRefresh'
 
-const { provider, refresh, start, stop } = createUsageRefresh(getUsage)
+const { accounts, loading, error, refresh, start, stop } = createUsageRefresh(getUsage)
 const { state: loginState, begin, cancel } = createCodexLogin({
   start: startCodexLogin,
   poll: pollCodexLogin,
@@ -15,7 +15,7 @@ const { state: loginState, begin, cancel } = createCodexLogin({
 const logoutFailed = shallowRef(false)
 const logoutting = shallowRef(false)
 const authenticating = computed(() => ['starting', 'waiting', 'cancelling'].includes(loginState.value))
-const authenticated = computed(() => ['available', 'partial', 'stale', 'error'].includes(provider.value.state))
+const authenticated = computed(() => accounts.value.some(account => account.accountStatus === 'Active'))
 const loginFailed = computed(() => loginState.value === 'error')
 
 async function switchAccount(): Promise<void> {
@@ -53,7 +53,9 @@ onUnmounted(() => {
 <template>
   <main class="app-shell">
     <UsagePanel
-      :provider="provider"
+      :accounts="accounts"
+      :loading="loading"
+      :error="error"
       :authenticating="authenticating"
       :authenticated="authenticated"
       :login-failed="loginFailed"
@@ -77,5 +79,5 @@ onUnmounted(() => {
   -webkit-font-smoothing: antialiased;
 }
 :global(button), :global(summary) { font: inherit; }
-.app-shell { display: grid; width: 100%; height: 100vh; overflow: hidden; place-items: start center; }
+.app-shell { display: grid; width: 100%; height: 100vh; overflow-y: auto; place-items: start center; }
 </style>

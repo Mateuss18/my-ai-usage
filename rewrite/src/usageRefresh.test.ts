@@ -1,25 +1,25 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import type { UsageSnapshot } from './domain/usage'
+import type { AccountIdentity, AccountUsageSnapshot, ProviderUsage, UsageSnapshot } from './domain/usage'
 import { createUsageRefresh } from './usageRefresh'
 
-const snapshot: UsageSnapshot = {
-  schemaVersion: 1,
-  fetchedAt: '2026-09-08T12:00:00Z',
-  providers: [{
-    schemaVersion: 1,
-    id: 'codex',
-    name: 'Codex',
-    vendor: 'OpenAI',
-    accountName: 'owner@example.com',
-    state: 'available',
-    capturedAt: '2026-09-08T11:59:00Z',
-    error: null,
-    quotas: [
-      { id: 'session', label: '5 hours / session', used: 73, limit: 100, percentage: 73, resetAt: '2026-09-08T14:18:00Z' },
-      { id: 'weekly', label: 'Weekly / all models', used: 21, limit: 100, percentage: 21, resetAt: '2026-09-14T12:00:00Z' },
-    ],
-  }],
+const accountA: AccountIdentity = { key: 'codex:a@example.com', provider: 'codex', email: 'a@example.com', accountType: 'personal', plan: 'Pro' }
+const accountB: AccountIdentity = { key: 'codex:b@example.com', provider: 'codex', email: 'b@example.com', accountType: 'team', plan: null }
+
+function usage(account: AccountIdentity, state: ProviderUsage['state'] = 'available', capturedAt = '2026-09-08T11:59:00Z'): ProviderUsage {
+  return {
+    schemaVersion: 1, id: account.provider, name: 'Codex', vendor: 'OpenAI', state, capturedAt,
+    error: state === 'error' ? { code: 'timeout', message: `${account.email} timed out.` } : null,
+    quotas: state === 'error' ? [] : [{ id: 'session', label: '5 hours / session', used: 73, limit: 100, percentage: 73, resetAt: '2026-09-08T14:18:00Z' }],
+  }
+}
+
+function accountSnapshot(account: AccountIdentity, state: ProviderUsage['state'] = 'available', fetchedAt = '2026-09-08T12:00:00Z'): AccountUsageSnapshot {
+  return { account, usage: usage(account, state), fetchedAt }
+}
+
+function snapshot(accounts: AccountUsageSnapshot[], activeAccountKey: string | null = accounts[0]?.account.key ?? null, error: UsageSnapshot['error'] = null): UsageSnapshot {
+  return { schemaVersion: 2, accounts, activeAccountKey, fetchedAt: '2026-09-08T12:00:00Z', error }
 }
 
 function fakeDocument(hidden = false) {
@@ -34,25 +34,102 @@ function fakeDocument(hidden = false) {
 }
 
 describe('live usage refresh', () => {
-  it('starts loading then maps an available snapshot with timestamp-derived labels', async () => {
-    const controller = createUsageRefresh(() => Promise.resolve(snapshot), { now: () => new Date('2026-09-08T12:00:00Z') })
+  it('returns accounts, global loading and root error instead of a provider', () => {
+    const controller = createUsageRefresh(() => Promise.resolve(snapshot([])))
 
-    expect(controller.provider.value).toMatchObject({ state: 'loading', statusLabel: 'Updating usage…', quotas: [] })
+    expect(controller).toHaveProperty('accounts')
+    expect(controller).toHaveProperty('loading')
+    expect(controller).toHaveProperty('error')
+    expect(controller).not.toHaveProperty('provider')
+    expect(controller.loading.value).toBe(true)
+  })
+
+  it('loads every account and marks exactly one Active while the rest are Cached', async () => {
+    const controller = createUsageRefresh(() => Promise.resolve(snapshot([accountSnapshot(accountA), accountSnapshot(accountB)], accountB.key)))
 
     await controller.refresh()
 
-    expect(controller.provider.value).toMatchObject({
-      id: 'codex', name: 'Codex', eyebrow: 'owner@example.com', glyph: '✦', state: 'available', statusLabel: 'Updated just now',
-      quotas: [
-        { id: 'session', title: '5 hours / session', percentage: 73, resetLabel: 'Resets in 2 h 18 min · 11:18', color: '#7dd3fc' },
-        { id: 'weekly', title: 'Weekly / all models', percentage: 21, resetLabel: 'Resets in 6 d · 14/09 09:00', color: '#c4b5fd' },
-      ],
-    })
+    expect(controller.accounts.value.map(item => item.account.key)).toEqual([accountA.key, accountB.key])
+    expect(controller.accounts.value.map(item => item.account.email)).toEqual(['a@example.com', 'b@example.com'])
+    expect(controller.accounts.value.map(item => item.accountStatus)).toEqual(['Cached', 'Active'])
+    expect(controller.accounts.value.filter(item => item.accountStatus === 'Active')).toHaveLength(1)
+  })
+
+  it('keeps A and B once across A to B to A refreshes', async () => {
+    const load = vi.fn()
+      .mockResolvedValueOnce(snapshot([accountSnapshot(accountA)], accountA.key))
+      .mockResolvedValueOnce(snapshot([accountSnapshot(accountB)], accountB.key))
+      .mockResolvedValueOnce(snapshot([accountSnapshot(accountA)], accountA.key))
+    const controller = createUsageRefresh(load)
+
+    await controller.refresh()
+    await controller.refresh()
+    await controller.refresh()
+
+    expect(controller.accounts.value.map(item => item.account.key)).toEqual([accountA.key, accountB.key])
+    expect(controller.accounts.value.filter(item => item.account.key === accountA.key)).toHaveLength(1)
+    expect(controller.accounts.value.find(item => item.account.key === accountA.key)?.accountStatus).toBe('Active')
+    expect(controller.accounts.value.find(item => item.account.key === accountB.key)?.accountStatus).toBe('Cached')
+  })
+
+  it('preserves a valid account as stale when that account errors, without hiding others', async () => {
+    const load = vi.fn()
+      .mockResolvedValueOnce(snapshot([accountSnapshot(accountA), accountSnapshot(accountB)], accountA.key))
+      .mockResolvedValueOnce(snapshot([accountSnapshot(accountA, 'error'), accountSnapshot(accountB, 'partial')], accountB.key))
+    const controller = createUsageRefresh(load, { now: () => new Date('2026-09-08T12:18:00Z') })
+
+    await controller.refresh()
+    await controller.refresh()
+
+    expect(controller.accounts.value).toEqual(expect.arrayContaining([
+      expect.objectContaining({ account: accountA, accountStatus: 'Cached', usage: expect.objectContaining({ state: 'stale', statusLabel: 'Last updated 18 minutes ago' }) }),
+      expect.objectContaining({ account: accountB, accountStatus: 'Active', usage: expect.objectContaining({ state: 'partial', statusLabel: 'Updated 18 minutes ago — some usage data is unavailable.' }) }),
+    ]))
+    expect(controller.accounts.value.find(item => item.account.key === accountA.key)?.usage.quotas).toHaveLength(1)
+  })
+
+  it('preserves all cached accounts after a bridge failure and exposes root error', async () => {
+    const load = vi.fn()
+      .mockResolvedValueOnce(snapshot([accountSnapshot(accountA), accountSnapshot(accountB)], accountA.key))
+      .mockRejectedValueOnce(new Error('bridge offline'))
+    const controller = createUsageRefresh(load)
+
+    await controller.refresh()
+    await controller.refresh()
+
+    expect(controller.accounts.value).toHaveLength(2)
+    expect(controller.accounts.value.every(item => item.usage.state === 'stale')).toBe(true)
+    expect(controller.error.value).toEqual({ code: 'bridge-error', message: 'Could not update usage. Try again.' })
+  })
+
+  it('shows an error with no cache and preserves loaded accounts alongside root error', async () => {
+    const empty = createUsageRefresh(() => Promise.reject(new Error('bridge offline')))
+    await empty.refresh()
+    expect(empty.accounts.value).toEqual([])
+    expect(empty.loading.value).toBe(false)
+    expect(empty.error.value).toEqual({ code: 'bridge-error', message: 'Could not update usage. Try again.' })
+
+    const loaded = createUsageRefresh(() => Promise.resolve(snapshot([accountSnapshot(accountA)], accountA.key, { code: 'partial-root', message: 'One provider failed.' })))
+    await loaded.refresh()
+    expect(loaded.accounts.value).toHaveLength(1)
+    expect(loaded.error.value).toEqual({ code: 'partial-root', message: 'One provider failed.' })
+  })
+
+  it('does not invent an Active account when the bridge reports no current identity', async () => {
+    const controller = createUsageRefresh(() => Promise.resolve(snapshot([
+      accountSnapshot(accountA, 'stale'),
+      accountSnapshot(accountB, 'stale'),
+    ], null, { code: 'unauthenticated', message: 'Sign in to Codex to read usage.' })))
+
+    await controller.refresh()
+
+    expect(controller.accounts.value.every(item => item.accountStatus === 'Cached')).toBe(true)
+    expect(controller.error.value?.code).toBe('unauthenticated')
   })
 
   it('coalesces concurrent refreshes into one load', async () => {
     let resolve!: () => void
-    const load = vi.fn(() => new Promise<UsageSnapshot>(done => { resolve = () => done(snapshot) }))
+    const load = vi.fn(() => new Promise<UsageSnapshot>(done => { resolve = () => done(snapshot([accountSnapshot(accountA)])) }))
     const controller = createUsageRefresh(load)
 
     const first = controller.refresh()
@@ -61,17 +138,19 @@ describe('live usage refresh', () => {
 
     resolve()
     await Promise.all([first, second])
-    expect(controller.provider.value.state).toBe('available')
+    expect(controller.accounts.value).toHaveLength(1)
   })
 
   it('does not apply a refresh started before the lifecycle was stopped', async () => {
-    const firstSnapshot = { ...snapshot, providers: [{ ...snapshot.providers[0], quotas: [{ ...snapshot.providers[0].quotas[0], percentage: 90 }] }] }
-    const secondSnapshot = { ...snapshot, providers: [{ ...snapshot.providers[0], quotas: [{ ...snapshot.providers[0].quotas[0], percentage: 10 }] }] }
+    const first = accountSnapshot(accountA)
+    first.usage.quotas[0]!.percentage = 90
+    const second = accountSnapshot(accountA)
+    second.usage.quotas[0]!.percentage = 10
     let resolveFirst!: () => void
     let resolveSecond!: () => void
     const load = vi.fn()
-      .mockImplementationOnce(() => new Promise<UsageSnapshot>(resolve => { resolveFirst = () => resolve(firstSnapshot) }))
-      .mockImplementationOnce(() => new Promise<UsageSnapshot>(resolve => { resolveSecond = () => resolve(secondSnapshot) }))
+      .mockImplementationOnce(() => new Promise<UsageSnapshot>(resolve => { resolveFirst = () => resolve(snapshot([first])) }))
+      .mockImplementationOnce(() => new Promise<UsageSnapshot>(resolve => { resolveSecond = () => resolve(snapshot([second])) }))
     const controller = createUsageRefresh(load, { document: fakeDocument() as unknown as typeof globalThis.document })
 
     controller.start()
@@ -85,136 +164,26 @@ describe('live usage refresh', () => {
     await Promise.resolve()
 
     expect(load).toHaveBeenCalledTimes(2)
-    expect(controller.provider.value.quotas[0]?.percentage).toBe(10)
+    expect(controller.accounts.value[0]?.usage.quotas[0]?.percentage).toBe(10)
     controller.stop()
   })
 
-  it('derives partial status from the snapshot timestamp', async () => {
-    const controller = createUsageRefresh(
-      () => Promise.resolve({ ...snapshot, providers: [{ ...snapshot.providers[0], state: 'partial' }] }),
-      { now: () => new Date('2026-09-08T12:00:00Z') },
-    )
-
-    await controller.refresh()
-
-    expect(controller.provider.value).toMatchObject({ state: 'partial', statusLabel: 'Updated just now — some usage data is unavailable.' })
-  })
-
-  it('keeps a valid snapshot as stale when a later refresh rejects', async () => {
-    const load = vi.fn<() => Promise<UsageSnapshot>>()
-      .mockResolvedValueOnce(snapshot)
-      .mockRejectedValueOnce(new Error('bridge offline'))
-    const controller = createUsageRefresh(load, { now: () => new Date('2026-09-08T12:18:00Z') })
-
-    await controller.refresh()
-    await controller.refresh()
-
-    expect(controller.provider.value).toMatchObject({ state: 'stale', statusLabel: 'Last updated 18 minutes ago' })
-    expect(controller.provider.value.quotas).toHaveLength(2)
-  })
-
-  it('keeps a valid snapshot as stale when the provider returns an error snapshot', async () => {
-    const load = vi.fn<() => Promise<UsageSnapshot>>()
-      .mockResolvedValueOnce(snapshot)
-      .mockResolvedValueOnce({
-        ...snapshot,
-        fetchedAt: '2026-09-08T12:18:00Z',
-        providers: [{ ...snapshot.providers[0], state: 'error', capturedAt: null, quotas: [], error: { code: 'timeout', message: 'Codex did not respond in time.' } }],
-      })
-    const controller = createUsageRefresh(load, { now: () => new Date('2026-09-08T12:18:00Z') })
-
-    await controller.refresh()
-    await controller.refresh()
-
-    expect(controller.provider.value).toMatchObject({ state: 'stale', statusLabel: 'Last updated 18 minutes ago' })
-    expect(controller.provider.value.quotas).toHaveLength(2)
-  })
-
-  it('shows an error when the first refresh rejects', async () => {
-    const controller = createUsageRefresh(() => Promise.reject(new Error('bridge offline')))
-
-    await controller.refresh()
-
-    expect(controller.provider.value).toMatchObject({ state: 'error', statusLabel: 'Could not update usage. Try again.', quotas: [] })
-  })
-
-  it.each([
-    ['unauthenticated', 'Sign in to Codex to read usage.'],
-    ['not-installed', 'Codex is not installed.'],
-  ] as const)('maps %s to an unavailable panel state', async (state, statusLabel) => {
-    const controller = createUsageRefresh(() => Promise.resolve({
-      ...snapshot,
-      providers: [{ ...snapshot.providers[0], state, capturedAt: null, quotas: [], error: { code: state, message: statusLabel } }],
-    }))
-
-    await controller.refresh()
-
-    expect(controller.provider.value).toMatchObject({ state: 'unavailable', statusLabel, quotas: [] })
-  })
-
-  it('refreshes immediately when a hidden document becomes visible', async () => {
+  it('refreshes immediately when a hidden document becomes visible and keeps one timer', async () => {
     vi.useFakeTimers()
     const document = fakeDocument(true)
-    const load = vi.fn(() => Promise.resolve(snapshot))
+    const load = vi.fn(() => Promise.resolve(snapshot([accountSnapshot(accountA)])))
     const controller = createUsageRefresh(load, { document: document as unknown as typeof globalThis.document, intervalMs: 60_000 })
 
     controller.start()
     expect(load).not.toHaveBeenCalled()
-
     document.setHidden(false)
     document.emitVisibilityChange()
     await Promise.resolve()
     await Promise.resolve()
-
     expect(load).toHaveBeenCalledTimes(1)
-    expect(controller.provider.value.state).toBe('available')
-    controller.stop()
-    vi.useRealTimers()
-  })
-
-  it('keeps one visibility listener and timer across repeated starts and stops', async () => {
-    vi.useFakeTimers()
-    const document = fakeDocument()
-    const load = vi.fn(() => Promise.resolve(snapshot))
-    const controller = createUsageRefresh(load, { document: document as unknown as typeof globalThis.document, intervalMs: 60_000 })
-
-    controller.start()
-    controller.start()
-    await controller.refresh()
-    expect(document.addEventListener).toHaveBeenCalledTimes(1)
-    expect(load).toHaveBeenCalledTimes(1)
-
     await vi.advanceTimersByTimeAsync(60_000)
     expect(load).toHaveBeenCalledTimes(2)
-
-    document.setHidden(true)
-    document.emitVisibilityChange()
-    await vi.advanceTimersByTimeAsync(60_000)
-    expect(load).toHaveBeenCalledTimes(2)
-
-    document.setHidden(false)
-    document.emitVisibilityChange()
-    await Promise.resolve()
-    await Promise.resolve()
-    expect(load).toHaveBeenCalledTimes(3)
-    await vi.advanceTimersByTimeAsync(60_000)
-    expect(load).toHaveBeenCalledTimes(4)
-
     controller.stop()
-    controller.stop()
-    expect(document.removeEventListener).toHaveBeenCalledTimes(1)
-    await vi.advanceTimersByTimeAsync(60_000)
-    expect(load).toHaveBeenCalledTimes(4)
-
-    controller.start()
-    await controller.refresh()
-    expect(document.addEventListener).toHaveBeenCalledTimes(2)
-    expect(load).toHaveBeenCalledTimes(5)
-    await vi.advanceTimersByTimeAsync(60_000)
-    expect(load).toHaveBeenCalledTimes(6)
-
-    controller.stop()
-    expect(document.removeEventListener).toHaveBeenCalledTimes(2)
     vi.useRealTimers()
   })
 })

@@ -1,7 +1,7 @@
 import { shallowRef } from 'vue'
 
-import type { ProviderUsage as PanelProviderUsage } from './components/usage/usageTypes'
-import type { ProviderUsage, UsageSnapshot } from './domain/usage'
+import type { AccountUsage as PanelAccountUsage, ProviderUsage as PanelProviderUsage } from './components/usage/usageTypes'
+import type { AccountUsageSnapshot, ProviderUsage, UsageError, UsageSnapshot } from './domain/usage'
 
 type VisibilityDocument = Pick<typeof globalThis.document, 'hidden' | 'addEventListener' | 'removeEventListener'>
 
@@ -12,16 +12,17 @@ export interface UsageRefreshOptions {
 }
 
 const colors: Record<string, string> = { session: '#7dd3fc', weekly: '#c4b5fd' }
-const defaultProvider: PanelProviderUsage = {
-  id: 'codex', name: 'Codex', eyebrow: 'OpenAI', glyph: '✦', state: 'loading', statusLabel: 'Updating usage…', quotas: [],
-}
 
 export function createUsageRefresh(load: () => Promise<UsageSnapshot>, options: UsageRefreshOptions = {}) {
-  const provider = shallowRef<PanelProviderUsage>(defaultProvider)
+  const accounts = shallowRef<PanelAccountUsage[]>([])
+  const loading = shallowRef(true)
+  const error = shallowRef<UsageError | null>(null)
   const now = options.now ?? (() => new Date())
   const document = options.document ?? (typeof globalThis.document === 'undefined' ? undefined : globalThis.document)
   const intervalMs = options.intervalMs ?? 60_000
-  let lastValid: { provider: ProviderUsage; fetchedAt: string | null } | undefined
+  const lastValidByAccount = new Map<string, AccountUsageSnapshot>()
+  const accountRecords = new Map<string, AccountUsageSnapshot>()
+  let activeAccountKey: string | null = null
   let refreshing: Promise<void> | undefined
   let refreshVersion = 0
   let timer: ReturnType<typeof globalThis.setInterval> | undefined
@@ -29,33 +30,50 @@ export function createUsageRefresh(load: () => Promise<UsageSnapshot>, options: 
 
   function refresh(): Promise<void> {
     if (refreshing) return refreshing
+    if (!accountRecords.size) loading.value = true
 
     const version = ++refreshVersion
     refreshing = load()
       .then(snapshot => {
         if (version !== refreshVersion) return
-        const next = snapshot.providers.find(item => item.id === 'codex')
-        if (!next) throw new Error('Codex usage is unavailable.')
-
-        if (!isValid(next) && lastValid) {
-          provider.value = toPanelProvider(lastValid.provider, lastValid.fetchedAt, now(), true)
-          return
+        error.value = snapshot.error ?? null
+        for (const next of snapshot.accounts) {
+          const previous = lastValidByAccount.get(next.account.key)
+          if (isUsable(next.usage)) {
+            lastValidByAccount.set(next.account.key, next)
+            accountRecords.set(next.account.key, next)
+          } else if (previous) {
+            accountRecords.set(next.account.key, asStale(previous))
+          } else {
+            accountRecords.set(next.account.key, next)
+          }
         }
-
-        if (isValid(next)) lastValid = { provider: next, fetchedAt: snapshot.fetchedAt }
-        provider.value = toPanelProvider(next, snapshot.fetchedAt, now())
+        activeAccountKey = snapshot.activeAccountKey && accountRecords.has(snapshot.activeAccountKey)
+          ? snapshot.activeAccountKey
+          : null
+        renderAccounts()
       })
       .catch(() => {
         if (version !== refreshVersion) return
-        provider.value = lastValid
-          ? toPanelProvider(lastValid.provider, lastValid.fetchedAt, now(), true)
-          : { ...defaultProvider, state: 'error', statusLabel: 'Could not update usage. Try again.' }
+        error.value = { code: 'bridge-error', message: 'Could not update usage. Try again.' }
+        for (const [key, previous] of lastValidByAccount) accountRecords.set(key, asStale(previous))
+        renderAccounts()
       })
       .finally(() => {
-        if (version === refreshVersion) refreshing = undefined
+        if (version !== refreshVersion) return
+        loading.value = false
+        refreshing = undefined
       })
 
     return refreshing
+  }
+
+  function renderAccounts(): void {
+    accounts.value = [...accountRecords.entries()].map(([key, snapshot]) => ({
+      account: snapshot.account,
+      usage: toPanelUsage(snapshot.usage, snapshot.fetchedAt, now()),
+      accountStatus: key === activeAccountKey ? 'Active' : 'Cached',
+    }))
   }
 
   function updateTimer(): void {
@@ -93,23 +111,25 @@ export function createUsageRefresh(load: () => Promise<UsageSnapshot>, options: 
     refreshing = undefined
   }
 
-  return { provider, refresh, start, stop }
+  return { accounts, loading, error, refresh, start, stop }
 }
 
-function isValid(provider: ProviderUsage): boolean {
-  return provider.state === 'available' || provider.state === 'partial' || provider.state === 'stale'
+function isUsable(provider: ProviderUsage): boolean {
+  return (provider.state === 'available' || provider.state === 'partial') && provider.quotas.length > 0
 }
 
-function toPanelProvider(source: ProviderUsage, fetchedAt: string | null, now: Date, stale = false): PanelProviderUsage {
-  const state = stale ? 'stale' : source.state === 'unauthenticated' || source.state === 'not-installed' ? 'unavailable' : source.state
-  const timestamp = fetchedAt ?? source.capturedAt
+function asStale(snapshot: AccountUsageSnapshot): AccountUsageSnapshot {
+  return { ...snapshot, usage: { ...snapshot.usage, state: 'stale', error: null } }
+}
+
+function toPanelUsage(source: ProviderUsage, fetchedAt: string | null, now: Date): PanelProviderUsage {
   return {
     id: source.id,
     name: source.name,
-    eyebrow: source.accountName ?? source.vendor,
+    eyebrow: source.vendor,
     glyph: '✦',
-    state,
-    statusLabel: statusLabel(state, timestamp, source.error?.message, now),
+    state: source.state,
+    statusLabel: statusLabel(source.state, fetchedAt, source.error?.message, now),
     quotas: source.quotas.map(quota => ({
       id: quota.id,
       title: quota.label,
@@ -126,8 +146,9 @@ function statusLabel(state: PanelProviderUsage['state'], timestamp: string | nul
   if (state === 'stale') return `Last updated ${timeAgo(timestamp, now)}`
   if (state === 'available') return `Updated ${timeAgo(timestamp, now)}`
   if (state === 'partial') return `Updated ${timeAgo(timestamp, now)} — some usage data is unavailable.`
-  if (state === 'unavailable') return error ?? 'Usage is unavailable right now.'
-  return error ? `${error} Try again.` : 'Could not update usage. Try again.'
+  if (state === 'unauthenticated') return error ?? 'Sign in to read usage.'
+  if (state === 'not-installed') return error ?? 'Provider is not installed.'
+  return error ?? 'Could not update usage. Try again.'
 }
 
 function timeAgo(timestamp: string | null, now: Date): string {

@@ -20,6 +20,7 @@ Este documento acompanha a execução do My AI Usage. Um item só deve ser marca
 - [x] Criar checks executáveis para configuração do processo, ciclo de vida, JSON-RPC, erro do servidor, múltiplos buckets e resposta parcial.
 - [x] Validar build sem erros ou avisos.
 - [x] Validar o fluxo completo com uma sessão Codex real autenticada (evidência histórica; não reproduzida na Task 0).
+- [x] Implementar no rewrite Tauri snapshots locais por conta Codex, preservando cache stale e exibindo contas Active/Cached.
 
 ### Estado do Git
 

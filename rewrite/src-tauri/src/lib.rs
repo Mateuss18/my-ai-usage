@@ -10,6 +10,7 @@ use tauri::{AppHandle, Manager, PhysicalPosition, Runtime, WebviewWindow, Window
 
 pub mod codex_provider;
 pub mod usage_contract;
+pub mod usage_repository;
 
 const MAIN_WINDOW: &str = "main";
 const TRAY_ID: &str = "main-tray";
@@ -337,8 +338,21 @@ fn exit_application<R: Runtime>(app: &AppHandle<R>, controller: &SharedControlle
 }
 
 #[tauri::command]
-fn get_usage(provider: tauri::State<'_, SharedCodexProvider>) -> usage_contract::UsageSnapshot {
-    provider.lock().unwrap().usage()
+fn get_usage(
+    app: AppHandle,
+    provider: tauri::State<'_, SharedCodexProvider>,
+) -> usage_contract::UsageSnapshot {
+    let Ok(data_dir) = app.path().app_data_dir() else {
+        let mut provider = provider.lock().unwrap();
+        let mut repository = usage_repository::UsageRepository::default();
+        return provider.usage(&mut repository);
+    };
+    let path = data_dir.join("usage-snapshots.json");
+    let mut provider = provider.lock().unwrap();
+    let mut repository = usage_repository::UsageRepository::load(&path);
+    let snapshot = provider.usage(&mut repository);
+    let _ = repository.save(&path);
+    snapshot
 }
 
 fn open_auth_url(auth_url: &str) -> Result<(), String> {
