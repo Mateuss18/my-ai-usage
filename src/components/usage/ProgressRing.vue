@@ -27,14 +27,14 @@ const ringStyle = computed(() => ({
 
 <style scoped>
 .progress-ring {
-  --ring-track: #35353b;
+  --ring-track: color-mix(in srgb, var(--app-blue) 28%, var(--app-ink));
   display: grid; position: relative; width: 62px; aspect-ratio: 1; margin-inline: auto; flex: 0 0 auto; place-items: center;
   border-radius: 50%;
   animation: ring-in 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .progress-ring::before {
-  z-index: 1; grid-area: 1 / 1; width: 48px; aspect-ratio: 1; border: 1px solid #4a4a52;
-  border-radius: 50%; background: #0f0f0f; content: '';
+  z-index: 1; grid-area: 1 / 1; width: 48px; aspect-ratio: 1; border: 1px solid color-mix(in srgb, var(--app-purple) 32%, var(--app-ink));
+  border-radius: 50%; background: var(--app-ink); content: '';
 }
 .progress-ring__svg { z-index: 0; grid-area: 1 / 1; width: 100%; height: 100%; overflow: visible; transform: rotate(-90deg); }
 .progress-ring__track, .progress-ring__progress { fill: none; stroke-width: 5; }
@@ -45,7 +45,7 @@ const ringStyle = computed(() => ({
 }
 .progress-ring--unknown .progress-ring__progress { display: none; }
 .progress-ring__icon { z-index: 2; grid-area: 1 / 1; width: 30px; height: 30px; object-fit: contain; }
-.progress-ring__glyph { z-index: 2; grid-area: 1 / 1; color: #f7f7f8; font-size: 1.25rem; font-weight: 600; line-height: 1; }
+.progress-ring__glyph { z-index: 2; grid-area: 1 / 1; color: var(--app-white); font-size: 1.25rem; font-weight: 600; line-height: 1; }
 @keyframes ring-in { from { opacity: 0; transform: scale(0.92) rotate(-8deg); } }
 @media (prefers-reduced-motion: reduce) { .progress-ring, .progress-ring__progress { animation: none; transition: none; } }
 </style>

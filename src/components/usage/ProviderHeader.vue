@@ -52,33 +52,33 @@ const emit = defineEmits<{ refresh: []; switchAccount: []; cancelLogin: []; logo
 <style scoped>
 .provider-header {
   position: relative; display: flex; align-items: center; justify-content: space-between;
-  min-width: 0; padding: 9px 16px 8px; border-bottom: 1px solid #37373d;
+  min-width: 0; padding: 14px 16px 4px;
 }
 .provider-header__brand { display: flex; min-width: 0; align-items: center; gap: 11px; }
 .provider-header__mark {
   display: grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center;
-  border: 0; border-radius: 9px; background: #151515; object-fit: cover;
+  border: 0; border-radius: 9px; background: var(--app-surface-2); object-fit: cover;
 }
 .provider-header__copy { min-width: 0; }
 .provider-header__eyebrow, .provider-header__name { margin: 0; overflow-wrap: anywhere; }
-.provider-header__eyebrow { color: #9898a1; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.075em; line-height: 1.2; text-transform: uppercase; }
-.provider-header__name { margin-top: 2px; color: #f7f7f8; font-size: 1rem; font-weight: 600; line-height: 1.25; }
-.provider-header__auth-status { margin: 0 8px 0 auto; color: #7dd3fc; font-size: 0.7rem; white-space: nowrap; }
+.provider-header__eyebrow { color: var(--app-text-subtle); font-size: 0.68rem; font-weight: 600; letter-spacing: 0.075em; line-height: 1.2; text-transform: uppercase; }
+.provider-header__name { margin-top: 2px; color: var(--app-white); font-size: 1rem; font-weight: 600; line-height: 1.25; }
+.provider-header__auth-status { margin: 0 8px 0 auto; color: var(--app-blue); font-size: 0.7rem; white-space: nowrap; }
 .provider-header__auth-status--error { color: #fca5a5; }
 .provider-header__menu { position: relative; flex: 0 0 auto; }
 .provider-header__menu summary {
   display: grid; width: 34px; height: 34px; cursor: pointer; list-style: none; place-items: center;
-  border-radius: 8px; color: #bdbdc4; letter-spacing: 0.08em; transition: background 120ms ease, color 120ms ease;
+  border-radius: 8px; color: var(--app-text-subtle); letter-spacing: 0.08em; transition: background 120ms ease, color 120ms ease;
 }
 .provider-header__menu summary::-webkit-details-marker { display: none; }
-.provider-header__menu summary:hover, .provider-header__menu[open] summary { background: #1c1c1c; color: #fff; }
-.provider-header__menu summary:focus-visible, .provider-header__menu-popover button:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
+.provider-header__menu summary:hover, .provider-header__menu[open] summary { background: var(--app-surface-2); color: var(--app-text-secondary); }
+.provider-header__menu summary:focus-visible, .provider-header__menu-popover button:focus-visible { outline: 2px solid var(--app-blue); outline-offset: 2px; }
 .provider-header__menu-popover {
   position: absolute; z-index: 2; top: 39px; right: 0; width: max-content; padding: 4px;
-  border: 1px solid #303030; border-radius: 8px; background: #121212; box-shadow: 0 10px 28px #0008;
+  border: 1px solid var(--app-border-strong); border-radius: 8px; background: var(--app-surface-2); box-shadow: 0 10px 28px #0008;
 }
-.provider-header__menu-popover button { display: block; width: 100%; padding: 7px 10px; border: 0; border-radius: 5px; background: transparent; color: #f4f4f5; cursor: pointer; font-size: 0.78rem; text-align: left; }
-.provider-header__menu-popover button:hover { background: #202020; }
+.provider-header__menu-popover button { display: block; width: 100%; padding: 7px 10px; border: 0; border-radius: 5px; background: transparent; color: var(--app-white); cursor: pointer; font-size: 0.78rem; text-align: left; }
+.provider-header__menu-popover button:hover { background: var(--app-surface-3); }
 .provider-header__menu-popover button:disabled { cursor: not-allowed; opacity: 0.5; }
 @media (prefers-reduced-motion: reduce) { .provider-header__menu summary { transition: none; } }
 </style>

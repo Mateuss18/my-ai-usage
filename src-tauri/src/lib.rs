@@ -6,7 +6,9 @@ use std::thread;
 
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Manager, PhysicalPosition, Runtime, WebviewWindow, WindowEvent};
+use tauri::{
+    AppHandle, LogicalSize, Manager, PhysicalPosition, Runtime, WebviewWindow, WindowEvent,
+};
 
 pub mod codex_provider;
 pub mod usage_contract;
@@ -16,7 +18,8 @@ const MAIN_WINDOW: &str = "main";
 const TRAY_ID: &str = "main-tray";
 const EXIT_MENU_ID: &str = "exit";
 const PANEL_WIDTH: i32 = 400;
-const PANEL_HEIGHT: i32 = 228;
+const PANEL_HEIGHT: i32 = 354;
+const PANEL_RAISE: i32 = 28;
 const INSTANCE_ADDRESS: &str = "127.0.0.1:47619";
 
 type SharedController = Arc<Mutex<Controller>>;
@@ -218,7 +221,7 @@ fn panel_position(anchor: Point, work_area: WorkArea, scale_factor: f64) -> Poin
     let size = panel_size(scale_factor);
     let desired = Point {
         x: anchor.x - size.width / 2,
-        y: anchor.y - size.height,
+        y: anchor.y - size.height - PANEL_RAISE,
     };
     clamp_panel_position(desired, work_area, scale_factor)
 }
@@ -279,6 +282,7 @@ fn set_position_from_last_or_cursor<R: Runtime>(
 }
 
 fn show_window<R: Runtime>(window: &WebviewWindow<R>) -> tauri::Result<()> {
+    window.set_size(LogicalSize::new(PANEL_WIDTH as f64, PANEL_HEIGHT as f64))?;
     window.show()?;
     window.set_focus()
 }
@@ -356,8 +360,8 @@ fn get_usage(
 }
 
 fn open_auth_url(auth_url: &str) -> Result<(), String> {
-    Command::new("explorer.exe")
-        .arg(auth_url)
+    Command::new("rundll32.exe")
+        .args(["url.dll,FileProtocolHandler", auth_url])
         .spawn()
         .map(|_| ())
         .map_err(|_| "Could not open the browser for Codex sign-in.".into())
@@ -526,6 +530,28 @@ mod tests {
             && origin.y >= work_area.y
             && origin.x + size.width <= work_area.x + work_area.width
             && origin.y + size.height <= work_area.y + work_area.height
+    }
+
+    #[test]
+    fn uses_compact_panel_height_without_reserved_blank_area() {
+        assert_eq!(PANEL_HEIGHT, 354);
+        assert!(include_str!("../tauri.conf.json").contains("\"height\": 354"));
+    }
+
+    #[test]
+    fn opens_panel_twenty_eight_pixels_above_tray_anchor() {
+        let position = panel_position(
+            Point { x: 960, y: 800 },
+            WorkArea {
+                x: 0,
+                y: 0,
+                width: 1920,
+                height: 1040,
+            },
+            1.0,
+        );
+
+        assert_eq!(position.y, 418);
     }
 
     #[test]

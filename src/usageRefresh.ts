@@ -11,7 +11,7 @@ export interface UsageRefreshOptions {
   now?: () => Date
 }
 
-const colors: Record<string, string> = { session: '#7dd3fc', weekly: '#c4b5fd' }
+const colors: Record<string, string> = { session: '#2678FD', weekly: '#8974FD' }
 
 export function createUsageRefresh(load: () => Promise<UsageSnapshot>, options: UsageRefreshOptions = {}) {
   const accounts = shallowRef<PanelAccountUsage[]>([])
@@ -135,7 +135,7 @@ function toPanelUsage(source: ProviderUsage, fetchedAt: string | null, now: Date
       title: quota.label,
       percentage: quota.percentage,
       resetLabel: resetLabel(quota.resetAt, now, quota.id !== 'session'),
-      color: colors[quota.id] ?? '#7dd3fc',
+      color: colors[quota.id] ?? '#2678FD',
       glyph: '✦',
     })),
   }

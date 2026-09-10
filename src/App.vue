@@ -70,14 +70,27 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+:global(:root) {
+  --app-ink: #05081A;
+  --app-surface-1: #0d1120;
+  --app-surface-2: #141a33;
+  --app-surface-3: #1b2244;
+  --app-border: rgba(255, 255, 255, 0.07);
+  --app-border-strong: rgba(255, 255, 255, 0.14);
+  --app-text-secondary: #b2badc;
+  --app-text-subtle: #9099bd;
+  --app-blue: #2678FD;
+  --app-purple: #8974FD;
+  --app-white: #FAFAFA;
+}
 :global(*) { box-sizing: border-box; }
 :global(html), :global(body), :global(#app) { width: 100%; height: 100%; min-width: 0; min-height: 100%; margin: 0; overflow: hidden; }
 :global(body) {
-  background: #090909;
-  color: #f5f5f5;
+  background: var(--app-ink);
+  color: var(--app-white);
   font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 :global(button), :global(summary) { font: inherit; }
-.app-shell { display: grid; width: 100%; height: 100vh; overflow-y: auto; place-items: start center; }
+.app-shell { display: grid; width: 100%; height: 100vh; overflow: hidden; place-items: start center; }
 </style>

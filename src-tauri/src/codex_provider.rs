@@ -1,5 +1,6 @@
 use std::collections::VecDeque;
 use std::io::{BufRead, BufReader, Write};
+use std::os::windows::process::CommandExt;
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -13,6 +14,13 @@ use crate::usage_contract::{
 use crate::usage_repository::UsageRepository;
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+fn hidden_command(program: &str) -> Command {
+    let mut command = Command::new(program);
+    command.creation_flags(CREATE_NO_WINDOW);
+    command
+}
 
 #[derive(Default)]
 pub struct CodexProvider {
@@ -83,7 +91,7 @@ impl CodexProvider {
         self.responses = None;
         self.notifications.clear();
         if let Some(mut child) = self.child.take() {
-            let _ = Command::new("taskkill.exe")
+            let _ = hidden_command("taskkill.exe")
                 .args(["/pid", &child.id().to_string(), "/t", "/f"])
                 .output();
             let _ = child.kill();
@@ -98,7 +106,6 @@ impl CodexProvider {
 
         let result = (|| {
             self.start()?;
-            normalize_logout_result(self.request("account/logout", None).map(|_| ()))?;
             let login = parse_login_start(
                 &self.request("account/login/start", Some(json!({ "type": "chatgpt" })))?,
             )?;
@@ -112,11 +119,20 @@ impl CodexProvider {
     }
 
     pub fn logout(&mut self) -> Result<(), ProviderError> {
-        let result = self
-            .start()
-            .and_then(|()| self.request("account/logout", None).map(|_| ()));
         self.shutdown();
-        normalize_logout_result(result)
+        if !codex_is_installed() {
+            return Err(ProviderError::NotInstalled);
+        }
+        let status = hidden_command("cmd.exe")
+            .args(["/d", "/c", "codex", "logout"])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map_err(|_| ProviderError::NotInstalled)?;
+        status
+            .success()
+            .then_some(())
+            .ok_or(ProviderError::Protocol)
     }
 
     pub fn poll_login(&mut self) -> Result<LoginStatus, ProviderError> {
@@ -199,7 +215,7 @@ impl CodexProvider {
             return Err(ProviderError::NotInstalled);
         }
 
-        let mut child = Command::new("cmd.exe")
+        let mut child = hidden_command("cmd.exe")
             .args(["/d", "/c", "codex", "app-server"])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -377,7 +393,7 @@ fn provider_usage(
 }
 
 fn codex_is_installed() -> bool {
-    Command::new("where.exe")
+    hidden_command("where.exe")
         .arg("codex")
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -395,13 +411,6 @@ fn is_authentication_error(error: &Value) -> bool {
                 || message.contains("unauthorized")
                 || message.contains("not authenticated")
         })
-}
-
-fn normalize_logout_result(result: Result<(), ProviderError>) -> Result<(), ProviderError> {
-    match result {
-        Ok(()) | Err(ProviderError::Unauthenticated) => Ok(()),
-        Err(error) => Err(error),
-    }
 }
 
 fn parse_login_start(result: &Value) -> Result<LoginStart, ProviderError> {
@@ -572,13 +581,13 @@ fn civil_from_days(days: i64) -> Option<(i64, i64, i64)> {
 }
 
 fn parse_account_identity(result: &Value) -> Result<AccountIdentity, ProviderError> {
-    if result.get("requiresOpenaiAuth").and_then(Value::as_bool) == Some(true) {
-        return Err(ProviderError::Unauthenticated);
-    }
-    let account = result
-        .get("account")
-        .and_then(Value::as_object)
-        .ok_or(ProviderError::MissingIdentity)?;
+    let account = match result.get("account").and_then(Value::as_object) {
+        Some(account) => account,
+        None if result.get("requiresOpenaiAuth").and_then(Value::as_bool) == Some(true) => {
+            return Err(ProviderError::Unauthenticated);
+        }
+        None => return Err(ProviderError::MissingIdentity),
+    };
     let account_type = account
         .get("type")
         .and_then(Value::as_str)
@@ -665,7 +674,8 @@ mod tests {
     #[test]
     fn normalizes_chatgpt_account_keys_from_trimmed_lowercase_email() {
         let identity = parse_account_identity(&json!({
-            "account": { "type": "chatgpt", "email": "  Owner@Example.COM  ", "planType": "plus" }
+            "account": { "type": "chatgpt", "email": "  Owner@Example.COM  ", "planType": "plus" },
+            "requiresOpenaiAuth": true
         }))
         .unwrap();
 
@@ -752,15 +762,6 @@ mod tests {
             login_status("new-account", &failed),
             Some(LoginStatus::Failed)
         );
-    }
-
-    #[test]
-    fn treats_an_already_signed_out_codex_session_as_a_successful_logout() {
-        assert!(normalize_logout_result(Err(ProviderError::Unauthenticated)).is_ok());
-        assert!(matches!(
-            normalize_logout_result(Err(ProviderError::Timeout)),
-            Err(ProviderError::Timeout)
-        ));
     }
 
     #[test]

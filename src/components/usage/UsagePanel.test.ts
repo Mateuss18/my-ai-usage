@@ -2,11 +2,19 @@ import { renderToString } from '@vue/server-renderer'
 import { createSSRApp } from 'vue'
 import { describe, expect, it } from 'vitest'
 
+import appStyles from '../../App.vue?raw'
+import panelStyles from './UsagePanel.vue?raw'
 import ProgressRing from './ProgressRing.vue'
 import UsagePanel from './UsagePanel.vue'
 import { getUsageFixture, usageFixtures } from './usageFixtures'
 
 describe('compact usage panel', () => {
+  it('uses the high-contrast navy surface palette', () => {
+    expect(appStyles).toContain('--app-surface-1: #0d1120')
+    expect(appStyles).toContain('--app-text-secondary: #b2badc')
+    expect(panelStyles).toContain('background: var(--app-surface-1)')
+  })
+
   it.each([[-10, 0], [37, 37], [120, 100]])('renders a dynamic accessible ring for %s', async (percentage, expected) => {
     const html = await renderToString(createSSRApp(ProgressRing, { percentage, color: '#123abc', glyph: 'C', label: 'Session usage' }))
 
@@ -19,6 +27,10 @@ describe('compact usage panel', () => {
   it('renders every account with email, plan and an accessible Active or Cached label', async () => {
     const html = await renderToString(createSSRApp(UsagePanel, { accounts: usageFixtures.multi, loading: false, error: null }))
 
+    expect(html).toContain('role="tablist"')
+    expect(html).toContain('1 - owner')
+    expect(html).toContain('2 - team@')
+    expect(html.match(/role="tab"/g) ?? []).toHaveLength(2)
     expect(html).toContain('owner@example.com')
     expect(html).toContain('team@example.com')
     expect(html).toContain('Pro')
