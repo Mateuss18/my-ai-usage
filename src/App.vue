@@ -6,7 +6,7 @@ import { createCodexLogin } from './codexLogin'
 import UsagePanel from './components/usage/UsagePanel.vue'
 import { createUsageRefresh } from './usageRefresh'
 
-const { accounts, loading, error, refresh, start, stop } = createUsageRefresh(getUsage)
+const { accounts, loading, error, refresh, reset, start, stop } = createUsageRefresh(getUsage)
 const { state: loginState, begin, cancel } = createCodexLogin({
   start: startCodexLogin,
   poll: pollCodexLogin,
@@ -34,11 +34,12 @@ async function logout(): Promise<void> {
   logoutFailed.value = false
   try {
     await logoutCodex()
+    reset()
   } catch {
     logoutFailed.value = true
-  } finally {
     start()
     await refresh()
+  } finally {
     logoutting.value = false
   }
 }

@@ -30,7 +30,7 @@ export function createUsageRefresh(load: () => Promise<UsageSnapshot>, options: 
 
   function refresh(): Promise<void> {
     if (refreshing) return refreshing
-    if (!accountRecords.size) loading.value = true
+    loading.value = true
 
     const version = ++refreshVersion
     refreshing = load()
@@ -111,7 +111,18 @@ export function createUsageRefresh(load: () => Promise<UsageSnapshot>, options: 
     refreshing = undefined
   }
 
-  return { accounts, loading, error, refresh, start, stop }
+  function reset(): void {
+    refreshVersion += 1
+    refreshing = undefined
+    lastValidByAccount.clear()
+    accountRecords.clear()
+    activeAccountKey = null
+    accounts.value = []
+    error.value = null
+    loading.value = false
+  }
+
+  return { accounts, loading, error, refresh, reset, start, stop }
 }
 
 function isUsable(provider: ProviderUsage): boolean {
@@ -134,7 +145,7 @@ function toPanelUsage(source: ProviderUsage, fetchedAt: string | null, now: Date
       id: quota.id,
       title: quota.label,
       percentage: quota.percentage,
-      resetLabel: resetLabel(quota.resetAt, now, quota.id !== 'session'),
+      resetLabel: resetLabel(quota.resetAt, now, quota.id !== 'session', source.state === 'stale'),
       color: colors[quota.id] ?? '#2678FD',
       glyph: '✦',
     })),
@@ -163,16 +174,21 @@ function timeAgo(timestamp: string | null, now: Date): string {
   return `${days} day${days === 1 ? '' : 's'} ago`
 }
 
-function resetLabel(timestamp: string | null, now: Date, includeDate: boolean): string {
+function resetLabel(timestamp: string | null, now: Date, includeDate: boolean, isCached: boolean): string {
   const time = timestamp ? Date.parse(timestamp) : Number.NaN
   if (Number.isNaN(time)) return 'Reset time unavailable'
-  let minutes = Math.max(0, Math.ceil((time - now.getTime()) / 60_000))
-  if (!minutes) return `Resets now · ${resetTimeInBrasilia(time, includeDate)}`
+  let minutes = Math.ceil((time - now.getTime()) / 60_000)
+  if (minutes < 0 && isCached) return `Reset ${formatDuration(-minutes)} ago · ${resetTimeInBrasilia(time, includeDate)}`
+  if (minutes <= 0) return `Resets now · ${resetTimeInBrasilia(time, includeDate)}`
+  return `Resets in ${formatDuration(minutes)} · ${resetTimeInBrasilia(time, includeDate)}`
+}
+
+function formatDuration(minutes: number): string {
   const days = Math.floor(minutes / 1_440)
   minutes -= days * 1_440
   const hours = Math.floor(minutes / 60)
   minutes -= hours * 60
-  return `Resets in ${[days && `${days} d`, hours && `${hours} h`, minutes && `${minutes} min`].filter(Boolean).join(' ')} · ${resetTimeInBrasilia(time, includeDate)}`
+  return [days && `${days} d`, hours && `${hours} h`, minutes && `${minutes} min`].filter(Boolean).join(' ')
 }
 
 function resetTimeInBrasilia(timestamp: number, includeDate: boolean): string {

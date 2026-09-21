@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 import appStyles from '../../App.vue?raw'
 import panelStyles from './UsagePanel.vue?raw'
+import headerSource from './ProviderHeader.vue?raw'
 import ProgressRing from './ProgressRing.vue'
 import UsagePanel from './UsagePanel.vue'
 import { getUsageFixture, usageFixtures } from './usageFixtures'
@@ -36,6 +37,7 @@ describe('compact usage panel', () => {
     expect(html).toContain('Pro')
     expect(html).toContain('Active')
     expect(html).toContain('Cached')
+    expect(html).toContain('usage-panel__account-status--active')
     expect(html.match(/role="progressbar"/g) ?? []).toHaveLength(4)
   })
 
@@ -60,6 +62,32 @@ describe('compact usage panel', () => {
     expect(error).toContain('role="alert"')
     expect(error).toContain('Could not update usage. Try again.')
     expect(error).toContain('Try again')
+  })
+
+  it('fills the window when no account is connected', async () => {
+    const empty = await renderToString(createSSRApp(UsagePanel, { accounts: [], loading: false, error: null }))
+
+    expect(empty).toContain('usage-panel--empty')
+    expect(panelStyles).toContain('.usage-panel--empty { width: 100%; height: 100%;')
+    expect(panelStyles).toContain('.usage-panel--empty .usage-panel__empty { min-height: 0; }')
+  })
+
+  it('shows refresh progress while keeping loaded accounts visible', async () => {
+    const html = await renderToString(createSSRApp(UsagePanel, { accounts: usageFixtures.codex, loading: true, error: null }))
+
+    expect(html).toContain('Refreshing…')
+    expect(html).toContain('provider-header__spinner')
+    expect(html).toContain('owner@example.com')
+  })
+
+  it('closes the options menu on outside pointer clicks and window blur', () => {
+    expect(headerSource).toContain("document.addEventListener('pointerdown', closeMenuOutside)")
+    expect(headerSource).toContain("window.addEventListener('blur', closeMenu)")
+  })
+
+  it('returns to the active account when the window regains focus', () => {
+    expect(panelStyles).toContain("window.addEventListener('focus', selectActiveAccount)")
+    expect(panelStyles).toContain("window.removeEventListener('focus', selectActiveAccount)")
   })
 
   it('keeps loaded accounts visible beside a root error', async () => {

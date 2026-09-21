@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, shallowRef, watch } from 'vue'
+import { computed, onMounted, onUnmounted, shallowRef, watch } from 'vue'
 
 import ProviderHeader from './ProviderHeader.vue'
 import UsageCard from './UsageCard.vue'
@@ -22,9 +22,16 @@ const emit = defineEmits<{ refresh: []; switchAccount: []; cancelLogin: []; logo
 const selectedAccountKey = shallowRef<string | null>(null)
 const activeAccountKey = computed(() => props.accounts.find(account => account.accountStatus === 'Active')?.account.key ?? props.accounts[0]?.account.key ?? null)
 
+function selectActiveAccount(): void {
+  if (activeAccountKey.value) selectedAccountKey.value = activeAccountKey.value
+}
+
 watch(activeAccountKey, (key, previousKey) => {
-  if (key && (selectedAccountKey.value === null || key !== previousKey)) selectedAccountKey.value = key
+  if (key && (selectedAccountKey.value === null || key !== previousKey)) selectActiveAccount()
 }, { immediate: true })
+
+onMounted(() => window.addEventListener('focus', selectActiveAccount))
+onUnmounted(() => window.removeEventListener('focus', selectActiveAccount))
 
 function selectAccount(key: string): void {
   selectedAccountKey.value = key
@@ -36,11 +43,12 @@ function shortEmail(email: string): string {
 </script>
 
 <template>
-  <section class="usage-panel" :aria-busy="(loading && accounts.length === 0) || authenticating || logoutting">
+  <section class="usage-panel" :class="{ 'usage-panel--empty': !loading && accounts.length === 0 }" :aria-busy="(loading && accounts.length === 0) || authenticating || logoutting">
     <ProviderHeader
       name="AI Usage"
       eyebrow="Codex"
       :logo-src="appLogo"
+      :loading="loading"
       :authenticating="authenticating"
       :authenticated="authenticated"
       :login-failed="loginFailed"
@@ -94,7 +102,7 @@ function shortEmail(email: string): string {
               {{ account.account.accountType }}<span v-if="account.account.plan"> · {{ account.account.plan }}</span>
             </p>
           </div>
-          <span class="usage-panel__account-status" role="status" :aria-label="`${account.accountStatus} account`">{{ account.accountStatus }}</span>
+          <span class="usage-panel__account-status" :class="{ 'usage-panel__account-status--active': account.accountStatus === 'Active' }" role="status" :aria-label="`${account.accountStatus} account`">{{ account.accountStatus }}</span>
         </header>
         <p class="usage-panel__status" :class="`usage-panel__status--${account.usage.state}`" :role="account.usage.state === 'error' ? 'alert' : 'status'">{{ account.usage.statusLabel }}</p>
         <div class="usage-panel__grid">
@@ -111,6 +119,8 @@ function shortEmail(email: string): string {
   border-radius: 14px; background: var(--app-surface-1); box-shadow: 0 20px 54px #0008;
   animation: panel-in 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
+.usage-panel--empty { width: 100%; height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.usage-panel--empty .usage-panel__empty { min-height: 0; }
 .usage-panel__content { display: grid; gap: 10px; padding: 12px 14px 14px; }
 .usage-panel__tabs { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 6px; }
 .usage-panel__tab {
@@ -127,6 +137,7 @@ function shortEmail(email: string): string {
 .usage-panel__email { color: var(--app-white); font-size: 0.8rem; font-weight: 650; line-height: 1.3; }
 .usage-panel__account-label { margin-top: 2px; color: var(--app-text-secondary); font-size: 0.68rem; line-height: 1.3; text-transform: capitalize; }
 .usage-panel__account-status { flex: 0 0 auto; padding: 3px 7px; border: 1px solid rgba(139, 92, 246, 0.25); border-radius: 999px; background: rgba(139, 92, 246, 0.14); color: #d2c7ff; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.usage-panel__account-status--active { border-color: rgba(56, 189, 248, 0.35); background: rgba(56, 189, 248, 0.14); color: #7dd3fc; }
 .usage-panel__status { padding: 5px 10px 0; color: var(--app-text-secondary); font-size: 0.68rem; line-height: 1.35; }
 .usage-panel__status--partial, .usage-panel__status--stale { color: #fde68a; }
 .usage-panel__status--error, .usage-panel__root-error { color: #fecaca; }

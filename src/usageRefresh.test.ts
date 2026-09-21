@@ -88,6 +88,19 @@ describe('live usage refresh', () => {
     expect(controller.accounts.value.find(item => item.account.key === accountA.key)?.usage.quotas).toHaveLength(1)
   })
 
+  it('shows how long ago a cached session reset instead of claiming it resets now', async () => {
+    const cached = accountSnapshot(accountA, 'stale')
+    cached.usage.quotas[0]!.resetAt = '2026-09-08T20:30:00-03:00'
+    const controller = createUsageRefresh(
+      () => Promise.resolve(snapshot([cached], null)),
+      { now: () => new Date('2026-09-08T21:05:00-03:00') },
+    )
+
+    await controller.refresh()
+
+    expect(controller.accounts.value[0]?.usage.quotas[0]?.resetLabel).toBe('Reset 35 min ago · 20:30')
+  })
+
   it('preserves all cached accounts after a bridge failure and exposes root error', async () => {
     const load = vi.fn()
       .mockResolvedValueOnce(snapshot([accountSnapshot(accountA), accountSnapshot(accountB)], accountA.key))
@@ -127,6 +140,16 @@ describe('live usage refresh', () => {
     expect(controller.error.value?.code).toBe('unauthenticated')
   })
 
+  it('clears cached accounts after sign out', async () => {
+    const controller = createUsageRefresh(() => Promise.resolve(snapshot([accountSnapshot(accountA)], accountA.key)))
+
+    await controller.refresh()
+    controller.reset()
+
+    expect(controller.accounts.value).toEqual([])
+    expect(controller.error.value).toBeNull()
+  })
+
   it('coalesces concurrent refreshes into one load', async () => {
     let resolve!: () => void
     const load = vi.fn(() => new Promise<UsageSnapshot>(done => { resolve = () => done(snapshot([accountSnapshot(accountA)])) }))
@@ -139,6 +162,23 @@ describe('live usage refresh', () => {
     resolve()
     await Promise.all([first, second])
     expect(controller.accounts.value).toHaveLength(1)
+  })
+
+  it('reports loading during refreshes after accounts are already visible', async () => {
+    let resolve!: (value: UsageSnapshot) => void
+    const load = vi.fn()
+      .mockResolvedValueOnce(snapshot([accountSnapshot(accountA)]))
+      .mockImplementationOnce(() => new Promise<UsageSnapshot>(done => { resolve = done }))
+    const controller = createUsageRefresh(load)
+
+    await controller.refresh()
+    const refresh = controller.refresh()
+
+    expect(controller.loading.value).toBe(true)
+    expect(controller.accounts.value).toHaveLength(1)
+    resolve(snapshot([accountSnapshot(accountA)]))
+    await refresh
+    expect(controller.loading.value).toBe(false)
   })
 
   it('does not apply a refresh started before the lifecycle was stopped', async () => {

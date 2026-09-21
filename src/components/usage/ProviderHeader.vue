@@ -1,15 +1,37 @@
 <script setup lang="ts">
+import { onMounted, onUnmounted, useTemplateRef } from 'vue'
+
 withDefaults(defineProps<{
   name: string
   eyebrow: string
   logoSrc: string
+  loading?: boolean
   authenticating?: boolean
   authenticated?: boolean
   loginFailed?: boolean
   logoutFailed?: boolean
   logoutting?: boolean
-}>(), { authenticating: false, authenticated: false, loginFailed: false, logoutFailed: false, logoutting: false })
+}>(), { loading: false, authenticating: false, authenticated: false, loginFailed: false, logoutFailed: false, logoutting: false })
 const emit = defineEmits<{ refresh: []; switchAccount: []; cancelLogin: []; logout: [] }>()
+const menu = useTemplateRef<HTMLDetailsElement>('menu')
+
+function closeMenu(): void {
+  if (menu.value) menu.value.open = false
+}
+
+function closeMenuOutside(event: PointerEvent): void {
+  if (event.target instanceof Node && !menu.value?.contains(event.target)) closeMenu()
+}
+
+onMounted(() => {
+  document.addEventListener('pointerdown', closeMenuOutside)
+  window.addEventListener('blur', closeMenu)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('pointerdown', closeMenuOutside)
+  window.removeEventListener('blur', closeMenu)
+})
 </script>
 
 <template>
@@ -25,7 +47,7 @@ const emit = defineEmits<{ refresh: []; switchAccount: []; cancelLogin: []; logo
     <p v-else-if="logoutting" class="provider-header__auth-status" role="status">Signing out…</p>
     <p v-else-if="loginFailed" class="provider-header__auth-status provider-header__auth-status--error" role="alert">Login failed. Try again.</p>
     <p v-else-if="logoutFailed" class="provider-header__auth-status provider-header__auth-status--error" role="alert">Sign out failed. Try again.</p>
-    <details class="provider-header__menu">
+    <details ref="menu" class="provider-header__menu">
       <summary :aria-label="`Options for ${name}`">•••</summary>
       <div class="provider-header__menu-popover">
         <button
@@ -43,7 +65,10 @@ const emit = defineEmits<{ refresh: []; switchAccount: []; cancelLogin: []; logo
           >{{ authenticated ? 'Switch account' : 'Sign in' }}</button>
           <button v-if="authenticated" type="button" aria-label="Sign out of Codex" :disabled="logoutting" @click="emit('logout')">Sign out</button>
         </template>
-        <button type="button" :disabled="authenticating || logoutting" @click="emit('refresh')">Refresh usage</button>
+        <button class="provider-header__refresh" type="button" :disabled="authenticating || logoutting || loading" @click="emit('refresh')">
+          <span v-if="loading" class="provider-header__spinner" aria-hidden="true"></span>
+          {{ loading ? 'Refreshing…' : 'Refresh usage' }}
+        </button>
       </div>
     </details>
   </header>
@@ -80,5 +105,8 @@ const emit = defineEmits<{ refresh: []; switchAccount: []; cancelLogin: []; logo
 .provider-header__menu-popover button { display: block; width: 100%; padding: 7px 10px; border: 0; border-radius: 5px; background: transparent; color: var(--app-white); cursor: pointer; font-size: 0.78rem; text-align: left; }
 .provider-header__menu-popover button:hover { background: var(--app-surface-3); }
 .provider-header__menu-popover button:disabled { cursor: not-allowed; opacity: 0.5; }
-@media (prefers-reduced-motion: reduce) { .provider-header__menu summary { transition: none; } }
+.provider-header__menu-popover .provider-header__refresh { display: flex; align-items: center; gap: 7px; }
+.provider-header__spinner { width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 650ms linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .provider-header__menu summary, .provider-header__spinner { animation: none; transition: none; } }
 </style>
