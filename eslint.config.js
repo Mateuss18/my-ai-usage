@@ -9,6 +9,13 @@ export default [
   eslint.configs.recommended,
   ...vue.configs['flat/essential'],
   {
+    files: ['**/*.{ts,vue}'],
+    rules: {
+      'no-undef': 'off',
+      'no-unused-vars': 'off',
+    },
+  },
+  {
     files: ['**/*.ts'],
     languageOptions: {
       parser: tsParser,
