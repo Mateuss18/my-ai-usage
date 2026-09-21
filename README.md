@@ -31,18 +31,34 @@ O executavel sem bundle fica em `src-tauri/target/x86_64-pc-windows-msvc/release
 
 ## Distribuicao e instalacao
 
-Nao gere nem instale o executavel diretamente no PC de uso. Uma compilacao local
-produz um binario novo e sem reputacao, que pode ser bloqueado por heuristica do
-antivirus.
+O build normal continua produzindo um executavel sem assinatura para desenvolvimento.
+Para testar uma instalacao neste PC, use o build assinado local:
 
-- Gere o instalador em CI ou em uma maquina de build separada.
-- Publique somente o instalador e o executavel assinados com certificado
-  Authenticode.
-- Antes de instalar, valide a assinatura com
-  `Get-AuthenticodeSignature <arquivo>`; o status precisa ser `Valid`.
-- Se um antivirus acusar o arquivo, pare a distribuicao e trate como possivel
-  falso positivo. Nao desative a protecao e nao crie exclusoes temporarias no
-  PC de uso.
+```powershell
+npm.cmd run build:windows:signed:local
+```
+
+Esse comando cria, se necessario, o certificado `My AI Usage Local Code Signing`
+no usuario atual do Windows, confia nele apenas neste PC, gera o MSI x64 e valida
+as assinaturas do executavel e do instalador. Esse certificado autoassinado nao e
+uma identidade publica e nao deve ser usado para distribuir o aplicativo.
+
+Para um release publico, importe um certificado Authenticode publico em
+`Cert:\CurrentUser\My`, defina `MY_AI_USAGE_SIGNING_THUMBPRINT` com o thumbprint
+dele e `MY_AI_USAGE_TIMESTAMP_URL` com o servico de timestamp fornecido pela
+autoridade certificadora, e execute:
+
+```powershell
+npm.cmd run build:windows:signed
+```
+
+- Gere releases publicos em CI ou em uma maquina de build separada, mantendo a
+  chave privada fora do Git e protegida pelo ambiente de release.
+- Publique somente o instalador e o executavel cujo
+  `Get-AuthenticodeSignature <arquivo>` retorne `Valid`.
+- Se um antivirus acusar um release publico, pare a distribuicao e trate como
+  possivel falso positivo. Usuarios finais nao devem desativar a protecao nem
+  criar exclusoes temporarias no PC de uso.
 
 ## Principios
 
