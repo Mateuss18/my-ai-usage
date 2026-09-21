@@ -20,6 +20,7 @@ const EXIT_MENU_ID: &str = "exit";
 const PANEL_WIDTH: i32 = 400;
 const PANEL_HEIGHT: i32 = 354;
 const PANEL_RAISE: i32 = 28;
+const PANEL_LEFT_SHIFT: i32 = 20;
 const INSTANCE_ADDRESS: &str = "127.0.0.1:47619";
 
 type SharedController = Arc<Mutex<Controller>>;
@@ -219,8 +220,9 @@ fn clamp_origin(origin: i32, start: i32, available: i32, panel: i32) -> i32 {
 
 fn panel_position(anchor: Point, work_area: WorkArea, scale_factor: f64) -> Point {
     let size = panel_size(scale_factor);
+    let left_shift = (PANEL_LEFT_SHIFT as f64 * scale_factor).round() as i32;
     let desired = Point {
-        x: anchor.x - size.width / 2,
+        x: anchor.x - size.width / 2 - left_shift,
         y: anchor.y - size.height - PANEL_RAISE,
     };
     clamp_panel_position(desired, work_area, scale_factor)
@@ -551,6 +553,7 @@ mod tests {
             1.0,
         );
 
+        assert_eq!(position.x, 740);
         assert_eq!(position.y, 418);
     }
 
