@@ -1,24 +1,29 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, shallowRef } from 'vue'
+import { isTauri } from '@tauri-apps/api/core'
 
-import { cancelCodexLogin, getUsage, logoutCodex, pollCodexLogin, startCodexLogin } from './bridge'
+import { cancelCodexLogin, deleteAccount, getUsage, logoutCodex, pollCodexLogin, resizeUsagePanel, startCodexLogin } from './bridge'
 import { createCodexLogin } from './codexLogin'
 import UsagePanel from './components/usage/UsagePanel.vue'
 import { createUsageRefresh } from './usageRefresh'
 
 const { accounts, loading, error, refresh, reset, start, stop } = createUsageRefresh(getUsage)
+const loginProfileId = shallowRef<string>()
 const { state: loginState, begin, cancel } = createCodexLogin({
-  start: startCodexLogin,
+  start: () => startCodexLogin(loginProfileId.value),
   poll: pollCodexLogin,
   cancel: cancelCodexLogin,
 })
 const logoutFailed = shallowRef(false)
 const logoutting = shallowRef(false)
+const deleting = shallowRef(false)
+const deleteFailed = shallowRef(false)
 const authenticating = computed(() => ['starting', 'waiting', 'cancelling'].includes(loginState.value))
 const authenticated = computed(() => accounts.value.some(account => account.accountStatus === 'Active'))
 const loginFailed = computed(() => loginState.value === 'error')
 
-async function switchAccount(): Promise<void> {
+async function switchAccount(profileId?: string): Promise<void> {
+  loginProfileId.value = profileId
   stop()
   logoutFailed.value = false
   try {
@@ -28,12 +33,12 @@ async function switchAccount(): Promise<void> {
   }
 }
 
-async function logout(): Promise<void> {
+async function logout(profileId?: string): Promise<void> {
   logoutting.value = true
   stop()
   logoutFailed.value = false
   try {
-    await logoutCodex()
+    await logoutCodex(profileId)
     reset()
   } catch {
     logoutFailed.value = true
@@ -41,11 +46,49 @@ async function logout(): Promise<void> {
     await refresh()
   } finally {
     logoutting.value = false
+    start()
   }
 }
 
-onMounted(start)
+async function removeAccount(key: string): Promise<void> {
+  deleting.value = true
+  deleteFailed.value = false
+  stop()
+  try {
+    const account = accounts.value.find(account => account.account.key === key)
+    await deleteAccount(key, account?.accountStatus === 'Active', account?.profileId ?? undefined)
+    reset()
+  } catch {
+    deleteFailed.value = true
+  } finally {
+    deleting.value = false
+    start()
+  }
+}
+
+let panelObserver: ResizeObserver | undefined
+
+function fitPanel(): void {
+  const panel = document.querySelector<HTMLElement>('.usage-panel')
+  if (isTauri() && panel) void resizeUsagePanel(Math.ceil(Number.parseFloat(getComputedStyle(panel).height))).catch(() => console.warn('Could not resize usage panel.'))
+}
+
+onMounted(() => {
+  start()
+  if (!isTauri()) return
+  const panel = document.querySelector<HTMLElement>('.usage-panel')
+  if (panel) {
+    panelObserver = new ResizeObserver(entries => {
+      const height = entries[0]?.borderBoxSize[0]?.blockSize
+      if (height) void resizeUsagePanel(Math.ceil(height)).catch(() => console.warn('Could not resize usage panel.'))
+    })
+    panelObserver.observe(panel)
+  }
+  window.addEventListener('focus', fitPanel)
+})
 onUnmounted(() => {
+  panelObserver?.disconnect()
+  window.removeEventListener('focus', fitPanel)
   stop()
   void cancel()
 })
@@ -62,10 +105,13 @@ onUnmounted(() => {
       :login-failed="loginFailed"
       :logout-failed="logoutFailed"
       :logoutting="logoutting"
+      :deleting="deleting"
+      :delete-failed="deleteFailed"
       @refresh="refresh"
       @switch-account="switchAccount"
       @cancel-login="cancel"
       @logout="logout"
+      @delete-account="removeAccount"
     />
   </main>
 </template>

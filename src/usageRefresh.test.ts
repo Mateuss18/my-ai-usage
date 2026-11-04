@@ -34,6 +34,33 @@ function fakeDocument(hidden = false) {
 }
 
 describe('live usage refresh', () => {
+  it('keeps two isolated profiles live and preserves the healthy one when the other fails', async () => {
+    const primary = { ...accountSnapshot(accountA), profileId: 'codex' }
+    const secondary = { ...accountSnapshot(accountB), profileId: 'codex-secondary' }
+    const load = vi.fn()
+      .mockResolvedValueOnce(snapshot([primary, secondary]))
+      .mockResolvedValueOnce(snapshot([{ ...primary, usage: usage(accountA, 'error') }, secondary], accountB.key))
+    const controller = createUsageRefresh(load)
+    await controller.refresh()
+    expect(controller.accounts.value.map(item => item.accountStatus)).toEqual(['Active', 'Active'])
+    expect(controller.accounts.value.map(item => item.profileId)).toEqual(['codex', 'codex-secondary'])
+    await controller.refresh()
+    expect(controller.accounts.value.map(item => item.accountStatus)).toEqual(['Cached', 'Active'])
+    expect(controller.accounts.value[0]?.usage.quotas).toHaveLength(1)
+  })
+
+  it('uses the current profile after a cached account moves to the secondary home', async () => {
+    const load = vi.fn()
+      .mockResolvedValueOnce(snapshot([{ ...accountSnapshot(accountB), profileId: 'codex' }]))
+      .mockResolvedValueOnce(snapshot([{ ...accountSnapshot(accountB, 'error'), profileId: 'codex-secondary' }]))
+    const controller = createUsageRefresh(load)
+    await controller.refresh()
+    await controller.refresh()
+    expect(controller.accounts.value[0]?.profileId).toBe('codex-secondary')
+    expect(controller.accounts.value[0]?.usage.state).toBe('stale')
+    expect(controller.accounts.value[0]?.usage.quotas).toHaveLength(1)
+  })
+
   it('returns accounts, global loading and root error instead of a provider', () => {
     const controller = createUsageRefresh(() => Promise.resolve(snapshot([])))
 

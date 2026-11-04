@@ -10,6 +10,7 @@ use tauri::{
     AppHandle, LogicalSize, Manager, PhysicalPosition, Runtime, WebviewWindow, WindowEvent,
 };
 
+pub mod codex_accounts;
 pub mod codex_provider;
 pub mod usage_contract;
 pub mod usage_repository;
@@ -24,7 +25,7 @@ const PANEL_LEFT_SHIFT: i32 = 20;
 const INSTANCE_ADDRESS: &str = "127.0.0.1:47619";
 
 type SharedController = Arc<Mutex<Controller>>;
-type SharedCodexProvider = Arc<Mutex<codex_provider::CodexProvider>>;
+type SharedCodexProvider = Arc<Mutex<codex_accounts::CodexAccounts>>;
 
 fn claim_instance() -> std::io::Result<Option<TcpListener>> {
     match TcpListener::bind(INSTANCE_ADDRESS) {
@@ -284,9 +285,33 @@ fn set_position_from_last_or_cursor<R: Runtime>(
 }
 
 fn show_window<R: Runtime>(window: &WebviewWindow<R>) -> tauri::Result<()> {
-    window.set_size(LogicalSize::new(PANEL_WIDTH as f64, PANEL_HEIGHT as f64))?;
     window.show()?;
     window.set_focus()
+}
+
+#[tauri::command]
+fn resize_usage_panel(window: WebviewWindow, height: u32) -> Result<(), String> {
+    if !(200..=800).contains(&height) {
+        return Err("Unsupported panel height.".into());
+    }
+    let resize = || -> tauri::Result<()> {
+        window.set_size(LogicalSize::new(PANEL_WIDTH as f64, height as f64))?;
+        if let Some(monitor) = window.current_monitor()? {
+            let origin = window.outer_position()?;
+            let scale = window.scale_factor()?;
+            let size = PanelSize {
+                width: (PANEL_WIDTH as f64 * scale).round() as i32,
+                height: (height as f64 * scale).round() as i32,
+            };
+            let area = monitor_work_area(&monitor);
+            window.set_position(PhysicalPosition::new(
+                clamp_origin(origin.x, area.x, area.width, size.width),
+                clamp_origin(origin.y, area.y, area.height, size.height),
+            ))?;
+        }
+        Ok(())
+    };
+    resize().map_err(|error| error.to_string())
 }
 
 fn handle_tray_click<R: Runtime>(
@@ -370,11 +395,14 @@ fn open_auth_url(auth_url: &str) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn start_codex_login(provider: tauri::State<'_, SharedCodexProvider>) -> Result<(), String> {
+fn start_codex_login(
+    provider: tauri::State<'_, SharedCodexProvider>,
+    profile_id: Option<String>,
+) -> Result<(), String> {
     let auth_url = provider
         .lock()
         .unwrap()
-        .start_login()
+        .start_login(profile_id.as_deref())
         .map_err(|error| error.to_string())?;
     if let Err(error) = open_auth_url(&auth_url) {
         let _ = provider.lock().unwrap().cancel_login();
@@ -404,12 +432,54 @@ fn cancel_codex_login(provider: tauri::State<'_, SharedCodexProvider>) -> Result
 }
 
 #[tauri::command]
-fn logout_codex(provider: tauri::State<'_, SharedCodexProvider>) -> Result<(), String> {
+fn logout_codex(
+    provider: tauri::State<'_, SharedCodexProvider>,
+    profile_id: Option<String>,
+) -> Result<(), String> {
     provider
         .lock()
         .unwrap()
-        .logout()
+        .logout(profile_id.as_deref())
         .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn delete_account(
+    app: AppHandle,
+    provider: tauri::State<'_, SharedCodexProvider>,
+    key: String,
+    active: bool,
+    profile_id: Option<String>,
+) -> Result<(), String> {
+    let path = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| error.to_string())?
+        .join("usage-snapshots.json");
+    let mut provider = provider.lock().unwrap();
+    let mut repository = usage_repository::UsageRepository::load(&path);
+    let Some(account) = repository
+        .snapshot()
+        .accounts
+        .iter()
+        .find(|item| item.account.key == key)
+    else {
+        return Err("Account not found.".into());
+    };
+    let saved_profile_id = account.profile_id.as_deref().unwrap_or("codex");
+    if profile_id
+        .as_deref()
+        .is_some_and(|id| id != saved_profile_id)
+    {
+        return Err("Account profile does not match.".into());
+    }
+    if active || account.profile_id.is_some() {
+        provider
+            .logout_account_if_matches(Some(saved_profile_id), &key)
+            .map_err(|error| error.to_string())?;
+    }
+    repository.remove_account(&key);
+    repository.save(&path).map_err(|error| error.to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -421,7 +491,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .manage(Arc::new(Mutex::new(
-            codex_provider::CodexProvider::default(),
+            codex_accounts::CodexAccounts::default(),
         )))
         .setup({
             let controller = Arc::clone(&controller);
@@ -516,7 +586,9 @@ pub fn run() {
             start_codex_login,
             poll_codex_login,
             cancel_codex_login,
-            logout_codex
+            logout_codex,
+            delete_account,
+            resize_usage_panel
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

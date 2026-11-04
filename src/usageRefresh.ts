@@ -43,7 +43,7 @@ export function createUsageRefresh(load: () => Promise<UsageSnapshot>, options: 
             lastValidByAccount.set(next.account.key, next)
             accountRecords.set(next.account.key, next)
           } else if (previous) {
-            accountRecords.set(next.account.key, asStale(previous))
+            accountRecords.set(next.account.key, { ...asStale(previous), account: next.account, profileId: next.profileId })
           } else {
             accountRecords.set(next.account.key, next)
           }
@@ -71,8 +71,9 @@ export function createUsageRefresh(load: () => Promise<UsageSnapshot>, options: 
   function renderAccounts(): void {
     accounts.value = [...accountRecords.entries()].map(([key, snapshot]) => ({
       account: snapshot.account,
+      profileId: snapshot.profileId,
       usage: toPanelUsage(snapshot.usage, snapshot.fetchedAt, now()),
-      accountStatus: key === activeAccountKey ? 'Active' : 'Cached',
+      accountStatus: snapshot.profileId ? (isUsable(snapshot.usage) ? 'Active' : 'Cached') : (key === activeAccountKey ? 'Active' : 'Cached'),
     }))
   }
 

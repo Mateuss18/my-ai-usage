@@ -36,6 +36,7 @@ export interface AccountIdentity {
 
 export interface AccountUsageSnapshot {
   account: AccountIdentity
+  profileId?: string | null
   usage: ProviderUsage
   fetchedAt: string | null
 }

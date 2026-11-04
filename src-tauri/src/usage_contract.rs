@@ -61,6 +61,8 @@ pub struct AccountUsageSnapshot {
     pub account: AccountIdentity,
     pub usage: ProviderUsage,
     pub fetched_at: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profile_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -120,6 +122,7 @@ mod tests {
         let snapshot = UsageSnapshot {
             schema_version: 2,
             accounts: vec![AccountUsageSnapshot {
+                profile_id: None,
                 account: AccountIdentity {
                     key: "codex:owner@example.com".into(),
                     provider: Provider::Codex,

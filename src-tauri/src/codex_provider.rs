@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 use std::io::{BufRead, BufReader, Write};
 use std::os::windows::process::CommandExt;
+use std::path::PathBuf;
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -24,6 +25,7 @@ fn hidden_command(program: &str) -> Command {
 
 #[derive(Default)]
 pub struct CodexProvider {
+    home: Option<PathBuf>,
     child: Option<Child>,
     input: Option<ChildStdin>,
     responses: Option<Receiver<String>>,
@@ -46,6 +48,21 @@ struct LoginStart {
 }
 
 impl CodexProvider {
+    pub fn with_home(home: PathBuf) -> Self {
+        let mut provider = Self::default();
+        provider.home = Some(home);
+        provider
+    }
+
+    fn command(&self) -> Command {
+        let mut command = hidden_command("cmd.exe");
+        command.args(["/d", "/c", "codex"]);
+        if let Some(home) = &self.home {
+            command.env("CODEX_HOME", home);
+        }
+        command
+    }
+
     pub fn usage(&mut self, repository: &mut UsageRepository) -> UsageSnapshot {
         let fetched_at = now_iso8601();
         if self.pending_login_id.is_some() {
@@ -123,8 +140,9 @@ impl CodexProvider {
         if !codex_is_installed() {
             return Err(ProviderError::NotInstalled);
         }
-        let status = hidden_command("cmd.exe")
-            .args(["/d", "/c", "codex", "logout"])
+        let status = self
+            .command()
+            .arg("logout")
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .status()
@@ -133,6 +151,12 @@ impl CodexProvider {
             .success()
             .then_some(())
             .ok_or(ProviderError::Protocol)
+    }
+
+    pub fn current_account_key(&mut self) -> Result<String, ProviderError> {
+        self.start()?;
+        let account = self.request("account/read", Some(json!({ "refreshToken": false })))?;
+        Ok(parse_account_identity(&account)?.key)
     }
 
     pub fn poll_login(&mut self) -> Result<LoginStatus, ProviderError> {
@@ -215,8 +239,9 @@ impl CodexProvider {
             return Err(ProviderError::NotInstalled);
         }
 
-        let mut child = hidden_command("cmd.exe")
-            .args(["/d", "/c", "codex", "app-server"])
+        let mut child = self
+            .command()
+            .arg("app-server")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
@@ -762,6 +787,21 @@ mod tests {
             login_status("new-account", &failed),
             Some(LoginStatus::Failed)
         );
+    }
+
+    #[test]
+    fn each_child_command_has_its_own_codex_home() {
+        let inherited = std::env::var_os("CODEX_HOME");
+        for home in ["C:\\codex-a", "C:\\codex-b"] {
+            let provider = CodexProvider::with_home(PathBuf::from(home));
+            let command = provider.command();
+            let configured = command
+                .get_envs()
+                .find(|(key, _)| *key == "CODEX_HOME")
+                .unwrap();
+            assert_eq!(configured.1, Some(std::ffi::OsStr::new(home)));
+        }
+        assert_eq!(std::env::var_os("CODEX_HOME"), inherited);
     }
 
     #[test]

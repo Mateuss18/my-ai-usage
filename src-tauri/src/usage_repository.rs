@@ -45,6 +45,52 @@ impl UsageRepository {
         &self.snapshot
     }
 
+    pub fn for_profile(&self, profile_id: &str) -> Self {
+        let mut snapshot = self.snapshot.clone();
+        snapshot.accounts.retain(|item| {
+            item.profile_id.as_deref() == Some(profile_id)
+                || (item.profile_id.is_none() && profile_id == "codex")
+        });
+        snapshot.active_account_key = None;
+        snapshot.error = None;
+        Self { snapshot }
+    }
+
+    pub fn merge_profile(&mut self, profile_id: &str, mut snapshot: UsageSnapshot) {
+        for mut item in snapshot.accounts.drain(..) {
+            item.profile_id = Some(profile_id.into());
+            if let Some(existing) = self
+                .snapshot
+                .accounts
+                .iter_mut()
+                .find(|existing| existing.account.key == item.account.key)
+            {
+                *existing = item;
+            } else {
+                self.snapshot.accounts.push(item);
+            }
+        }
+        if profile_id == "codex" {
+            self.snapshot.active_account_key = snapshot.active_account_key;
+        }
+        self.snapshot.fetched_at = snapshot.fetched_at.or(self.snapshot.fetched_at.take());
+    }
+
+    pub fn set_refresh_error(&mut self, error: Option<UsageError>) {
+        self.snapshot.error = error;
+    }
+
+    pub fn remove_account(&mut self, key: &str) -> bool {
+        let before = self.snapshot.accounts.len();
+        self.snapshot
+            .accounts
+            .retain(|item| item.account.key != key);
+        if self.snapshot.active_account_key.as_deref() == Some(key) {
+            self.snapshot.active_account_key = None;
+        }
+        before != self.snapshot.accounts.len()
+    }
+
     pub fn record_success(
         &mut self,
         account: AccountIdentity,
@@ -62,6 +108,7 @@ impl UsageRepository {
         let mut usage = usage;
         usage.error = None;
         let item = AccountUsageSnapshot {
+            profile_id: None,
             account,
             usage,
             fetched_at: Some(fetched_at.clone()),
@@ -102,6 +149,7 @@ impl UsageRepository {
             existing.usage.error = Some(error);
         } else {
             self.snapshot.accounts.push(AccountUsageSnapshot {
+                profile_id: None,
                 account,
                 usage: empty_usage(UsageState::Stale, Some(error)),
                 fetched_at: None,
@@ -283,6 +331,73 @@ mod tests {
         assert_eq!(a.usage.quotas[0].percentage, Some(30.0));
         assert_eq!(a.usage.state, UsageState::Available);
         assert_eq!(b.usage.state, UsageState::Stale);
+    }
+
+    #[test]
+    fn profile_refreshes_keep_both_accounts_live_and_isolate_a_failed_profile() {
+        let mut repository = UsageRepository::default();
+        let mut first = repository.for_profile("codex");
+        first.record_success(account("a@example.com"), usage(10.0), "a1".into());
+        repository.merge_profile("codex", first.snapshot().clone());
+        let mut second = repository.for_profile("codex-secondary");
+        second.record_success(account("b@example.com"), usage(20.0), "b1".into());
+        repository.merge_profile("codex-secondary", second.snapshot().clone());
+        assert!(repository
+            .snapshot()
+            .accounts
+            .iter()
+            .all(|item| item.usage.state == UsageState::Available));
+        assert_eq!(
+            repository.snapshot().accounts[1].profile_id.as_deref(),
+            Some("codex-secondary")
+        );
+        let mut second = repository.for_profile("codex-secondary");
+        second.record_root_error(
+            UsageError {
+                code: "timeout".into(),
+                message: "Codex did not respond in time.".into(),
+            },
+            "b2".into(),
+        );
+        repository.merge_profile("codex-secondary", second.snapshot().clone());
+        assert_eq!(
+            repository.snapshot().accounts[0].usage.state,
+            UsageState::Available
+        );
+        assert_eq!(
+            repository.snapshot().accounts[1].usage.state,
+            UsageState::Stale
+        );
+        assert_eq!(
+            repository.snapshot().accounts[1].usage.quotas[0].percentage,
+            Some(20.0)
+        );
+        let file = path("profile-reload");
+        repository.save(&file).unwrap();
+        let loaded = UsageRepository::load(&file);
+        assert_eq!(
+            loaded.snapshot().accounts[1].profile_id.as_deref(),
+            Some("codex-secondary")
+        );
+        let _ = fs::remove_file(file);
+    }
+
+    #[test]
+    fn removes_only_selected_account_from_persisted_snapshot() {
+        let file = path("remove");
+        let mut repository = UsageRepository::default();
+        repository.record_success(account("a@example.com"), usage(10.0), "a1".into());
+        repository.record_success(account("b@example.com"), usage(20.0), "b1".into());
+        assert!(repository.remove_account("codex:b@example.com"));
+        repository.save(&file).unwrap();
+        let loaded = UsageRepository::load(&file);
+        assert_eq!(loaded.snapshot().accounts.len(), 1);
+        assert_eq!(
+            loaded.snapshot().accounts[0].account.key,
+            "codex:a@example.com"
+        );
+        assert_eq!(repository.snapshot().active_account_key, None);
+        let _ = fs::remove_file(file);
     }
 
     #[test]

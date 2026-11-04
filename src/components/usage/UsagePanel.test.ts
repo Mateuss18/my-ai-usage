@@ -10,6 +10,26 @@ import UsagePanel from './UsagePanel.vue'
 import { getUsageFixture, usageFixtures } from './usageFixtures'
 
 describe('compact usage panel', () => {
+  it('shows both profile quota summaries while keeping account details compact', async () => {
+    const html = await renderToString(createSSRApp(UsagePanel, { accounts: usageFixtures.simultaneous, loading: false, error: null }))
+    const tabs = html.slice(html.indexOf('role="tablist"'), html.indexOf('<article'))
+    expect(tabs.match(/5h left/g)).toHaveLength(2)
+    expect(tabs.match(/Week left/g)).toHaveLength(2)
+    for (const value of ['27%', '79%', '85%', '58%']) expect(tabs).toContain(value)
+    expect(tabs).not.toContain('display:none')
+    expect(html).not.toContain('Connect second account')
+  })
+
+  it('keeps unknown quota summaries unknown and labels saved accounts as cached', async () => {
+    const primary = usageFixtures.multi[0]!
+    const secondary = { ...usageFixtures.multi[1]!, usage: { ...primary.usage, quotas: [] } }
+    const html = await renderToString(createSSRApp(UsagePanel, { accounts: [primary, secondary], loading: false, error: null }))
+    expect(html).toMatch(/5h left <b[^>]*>—<\/b>/)
+    expect(html).toMatch(/Week left <b[^>]*>—<\/b>/)
+    expect(html).toContain('· Cached')
+    expect(html).toContain('Connect second account')
+  })
+
   it('uses the high-contrast navy surface palette', () => {
     expect(appStyles).toContain('--app-surface-1: #0d1120')
     expect(appStyles).toContain('--app-text-secondary: #b2badc')
@@ -39,6 +59,11 @@ describe('compact usage panel', () => {
     expect(html).toContain('Cached')
     expect(html).toContain('usage-panel__account-status--active')
     expect(html.match(/role="progressbar"/g) ?? []).toHaveLength(4)
+    expect(html.match(/class="usage-panel__delete"/g) ?? []).toHaveLength(1)
+    expect(html).toContain('Remove owner@example.com')
+    expect(html).not.toContain('Remove team@example.com')
+    expect(html).toContain('aria-labelledby="delete-title"')
+    expect(html).toContain('Remove account?')
   })
 
   it.each([
@@ -129,6 +154,6 @@ describe('compact usage panel', () => {
     expect(authenticating).toContain('Waiting for login in your browser')
     expect(loginFailed).toContain('Login failed. Try again.')
     expect(loggingOut).toContain('Signing out…')
-    expect(loggingOut.match(/disabled/g) ?? []).toHaveLength(3)
+    expect(loggingOut.match(/disabled/g) ?? []).toHaveLength(5)
   })
 })

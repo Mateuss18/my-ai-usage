@@ -17,6 +17,10 @@ export const usageFixtures: Record<string, AccountUsage[]> = {
     account('codex:owner@example.com', 'owner@example.com', 'personal', 'Pro'),
     account('codex:team@example.com', 'team@example.com', 'team', null, 'Cached'),
   ],
+  simultaneous: [
+    { ...account('codex:owner@example.com', 'owner@example.com', 'personal', 'Pro'), profileId: 'codex' },
+    { ...account('codex:team@example.com', 'team@example.com', 'team', 'Plus'), profileId: 'codex-secondary', usage: { ...account('codex:team@example.com', 'team@example.com', 'team', 'Plus').usage, quotas: codexQuotas.map(quota => ({ ...quota, percentage: quota.id === 'session' ? 15 : 42 })) } },
+  ],
   loading: [],
   error: [],
   partial: [{ ...account('codex:owner@example.com', 'owner@example.com', 'personal', 'Pro'), usage: { ...account('codex:owner@example.com', 'owner@example.com', 'personal', 'Pro').usage, state: 'partial', statusLabel: 'Updated just now — some usage data is unavailable.' } }],

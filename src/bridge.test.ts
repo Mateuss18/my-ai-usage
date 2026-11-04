@@ -2,12 +2,23 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { invoke } from '@tauri-apps/api/core'
 
-import { cancelCodexLogin, describeBridgeError, getUsage, invokeGreeting, logoutCodex, pollCodexLogin, startCodexLogin } from './bridge'
+import { cancelCodexLogin, deleteAccount, describeBridgeError, getUsage, invokeGreeting, logoutCodex, pollCodexLogin, startCodexLogin } from './bridge'
 
 // Mocked bridge check; A2 still requires the real Tauri invocation.
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 
 describe('frontend-to-Tauri bridge', () => {
+  it('targets the selected profile for login, logout and removal', async () => {
+    vi.mocked(invoke).mockResolvedValue(undefined)
+    await startCodexLogin('codex-secondary')
+    expect(invoke).toHaveBeenLastCalledWith('start_codex_login', { profileId: 'codex-secondary' })
+    await logoutCodex('codex-secondary')
+    expect(invoke).toHaveBeenLastCalledWith('logout_codex', { profileId: 'codex-secondary' })
+    await deleteAccount('codex:b@example.com', true, 'codex-secondary')
+    expect(invoke).toHaveBeenLastCalledWith('delete_account', { key: 'codex:b@example.com', active: true, profileId: 'codex-secondary' })
+    vi.mocked(invoke).mockClear()
+  })
+
   it('returns the Rust command response', async () => {
     vi.mocked(invoke).mockResolvedValue('Hello from Rust!')
 

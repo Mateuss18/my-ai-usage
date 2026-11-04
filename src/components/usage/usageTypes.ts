@@ -21,6 +21,7 @@ export interface ProviderUsage {
 
 export interface AccountUsage {
   account: AccountIdentity
+  profileId?: string | null
   usage: ProviderUsage
   accountStatus: 'Active' | 'Cached'
 }

@@ -11,8 +11,9 @@ withDefaults(defineProps<{
   loginFailed?: boolean
   logoutFailed?: boolean
   logoutting?: boolean
+  secondaryConnected?: boolean
 }>(), { loading: false, authenticating: false, authenticated: false, loginFailed: false, logoutFailed: false, logoutting: false })
-const emit = defineEmits<{ refresh: []; switchAccount: []; cancelLogin: []; logout: [] }>()
+const emit = defineEmits<{ refresh: []; switchAccount: []; addAccount: []; cancelLogin: []; logout: [] }>()
 const menu = useTemplateRef<HTMLDetailsElement>('menu')
 
 function closeMenu(): void {
@@ -63,6 +64,7 @@ onUnmounted(() => {
             :disabled="logoutting"
             @click="emit('switchAccount')"
           >{{ authenticated ? 'Switch account' : 'Sign in' }}</button>
+          <button v-if="!secondaryConnected" type="button" :disabled="logoutting" @click="emit('addAccount')">Connect second account</button>
           <button v-if="authenticated" type="button" aria-label="Sign out of Codex" :disabled="logoutting" @click="emit('logout')">Sign out</button>
         </template>
         <button class="provider-header__refresh" type="button" :disabled="authenticating || logoutting || loading" @click="emit('refresh')">
