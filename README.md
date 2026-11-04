@@ -2,6 +2,35 @@
 
 Aplicativo Tauri para Windows que mostra rapidamente o uso das quotas do Codex e seus horarios de renovacao.
 
+## Duas contas com o T3
+
+O painel mostra um resumo das quotas das duas contas ao mesmo tempo. Clique em uma
+delas para ver os detalhes e os horarios de renovacao. `Active` indica uma leitura
+atualizada; `Cached` indica dados salvos, que podem estar desatualizados.
+
+1. Mantenha a primeira conta no Codex habitual (`~/.codex`, ou `CODEX_HOME`).
+2. No menu do My AI Usage, escolha **Connect second account** e entre na segunda
+   conta. Esse login usa `C:\Users\mateu\.codex-secondary` neste PC e nao substitui
+   o login da primeira conta.
+3. No T3, abra **Settings → Providers → Add provider → Codex** e use o nome
+   **Codex 2**. Em **Config**, defina **CODEX_HOME path** como
+   `C:\Users\mateu\.codex-secondary`, deixe **Shadow home path** vazio e salve.
+   Esse caminho usa **Use existing CLI**, com `setupMode: existing`.
+4. Selecione **Codex 2** ao iniciar uma conversa. A primeira conta continua
+   disponivel nas outras conversas. Nao e necessario fechar o T3 para alternar
+   entre conversas das duas contas.
+
+Com homes independentes, cada conversa permanece no perfil em que comecou. A troca
+de conta dentro da mesma conversa depende de compartilhar o estado das sessoes e
+nao e configurada por este aplicativo.
+
+O app tambem reconhece os homes de perfis CLI existentes nas configuracoes locais
+do T3. Contas criadas por **Add ChatGPT account** no modo gerenciado do T3 usam
+credenciais privadas dele e nao oferecem um login CLI consultavel por este app.
+Use o fluxo acima para acompanhar as quotas. Nenhuma credencial e copiada entre
+contas; o proprio Codex gerencia cada login no seu home. Veja a
+[documentacao de autenticacao do Codex](https://learn.chatgpt.com/docs/auth?surface=cli).
+
 ## Stack
 
 - Tauri 2 com Rust.
@@ -63,7 +92,7 @@ npm.cmd run build:windows:signed
 ## Principios
 
 - Windows-first e local-first.
-- Read-only: o aplicativo consulta dados e nao altera contas ou quotas.
+- A consulta de quotas e somente leitura; login, logout e remocao sao acoes explicitas.
 - Credenciais e dados do usuario nao passam por servidores do projeto.
 - Valores indisponiveis permanecem desconhecidos; nunca sao convertidos silenciosamente em zero.
 

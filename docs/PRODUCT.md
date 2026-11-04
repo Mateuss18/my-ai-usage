@@ -18,14 +18,16 @@ Entregar um utilitario discreto e confiavel que:
 - Aplicativo Tauri com frontend Vue e runtime Rust.
 - Janela compacta acessivel pela bandeja.
 - Login e logout do Codex pelo fluxo local suportado.
-- Uma conta ativa por leitura e snapshots stale de contas ja vistas.
+- Consultas isoladas por perfil CLI, com duas contas atualizadas simultaneamente e snapshots stale de contas ja vistas.
+- Resumo das duas contas sempre visivel e detalhes da conta selecionada.
+- Login secundario em `~/.codex-secondary`, sem substituir o login principal.
 - Atualizacao manual e automatica serializada.
 - Nenhum servidor, telemetria ou armazenamento de credenciais do projeto.
 
 ## Fora do escopo
 
 - Outros provedores.
-- Troca ou gerenciamento de contas.
+- Gerenciamento de credenciais privadas do T3 e migracao de sessoes entre contas.
 - Historico de tokens, graficos e custo de API.
 - Sincronizacao entre dispositivos.
 - Backend e coleta remota.
@@ -34,6 +36,6 @@ Entregar um utilitario discreto e confiavel que:
 
 1. Windows-first: integracao coerente com o sistema.
 2. Local-first: dados e credenciais permanecem locais.
-3. Read-only: quotas e contas nao sao alteradas pelo aplicativo.
+3. Quotas somente leitura: login, logout e remocao exigem uma acao explicita.
 4. Honestidade: campos ausentes permanecem desconhecidos.
 5. Escopo pequeno: adicionar somente o que o fluxo real exigir.
